@@ -1,0 +1,1803 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>برنامج تحليل وتوحيد الدرجات الشامل</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        indigo: {
+                            50: '#EFEEFC', 100: '#E1DEF9', 200: '#C3BEF4', 300: '#A199EC',
+                            400: '#8070E1', 500: '#6552D6', 600: '#4F3FC7', 700: '#3F32A3',
+                            800: '#332984', 900: '#292168', 950: '#191340'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { font-family: 'Tajawal', sans-serif; background-color: #F6F5FB; }
+        .custom-scrollbar::-webkit-scrollbar { height: 8px; width: 8px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        td { transition: background-color 0.2s; }
+        td:hover { background-color: #f8fafc; }
+        .analysis-tab-btn { color: #64748b; border-color: transparent; }
+        .analysis-tab-btn.active { color: #4B3FC4; border-color: #4B3FC4; }
+        .chart-box { position: relative; height: 260px; }
+        .chart-box-sm { position: relative; height: 200px; }
+        .print-only { display: none; }
+        @media print {
+            body.printing-report * { visibility: hidden; }
+            body.printing-report #percentageReportModal,
+            body.printing-report #percentageReportModal * { visibility: visible; }
+            body.printing-report #percentageReportModal {
+                position: absolute; inset: 0; margin: 0; padding: 0;
+                background: white !important; backdrop-filter: none !important;
+                display: block !important;
+            }
+            body.printing-report #percentageReportModal > div {
+                box-shadow: none !important; border-radius: 0 !important;
+                max-height: none !important; width: 100% !important; max-width: 100% !important;
+            }
+            body.printing-report .no-print { display: none !important; }
+            body.printing-report .print-only { display: block !important; }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen p-4 md:p-8">
+
+    <!-- Toast Notification -->
+    <div id="toast" class="fixed top-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-xl text-white opacity-0 transition-opacity duration-300 pointer-events-none z-50 flex items-center gap-2">
+        <span id="toastIcon"></span>
+        <span id="toastMessage" class="font-medium"></span>
+    </div>
+
+    <!-- Confirm Modal -->
+    <div id="confirmModal" class="fixed inset-0 bg-slate-900/50 hidden flex items-center justify-center z-50 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl p-6 shadow-2xl max-w-sm w-full mx-4 transform scale-95 transition-transform duration-300" id="modalContent">
+            <h3 class="text-lg font-bold text-slate-900 mb-2">تأكيد الحذف</h3>
+            <p class="text-slate-600 mb-6">هل أنت متأكد أنك تريد حذف جميع البيانات المحفوظة؟ لا يمكن التراجع عن هذا الإجراء.</p>
+            <div class="flex gap-3 justify-end">
+                <button onclick="closeModal()" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 font-medium transition-colors">إلغاء</button>
+                <button onclick="executeClearAll()" class="px-4 py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-medium transition-colors">نعم، احذف الكل</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة التحليل الشامل -->
+    <div id="analysisModal" class="fixed inset-0 bg-slate-900/50 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="p-5 bg-indigo-600 text-white flex justify-between items-center">
+                <h3 class="text-lg font-bold">مركز التحليل والمقارنات</h3>
+                <button onclick="closeAnalysisModal()" class="text-white hover:text-indigo-200 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+
+            <!-- تبويبات أنماط التحليل -->
+            <div class="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
+                <button onclick="switchAnalysisTab('single')" id="tabBtn-single" class="analysis-tab-btn px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors">مقارنة فصول/اختبارات لصف واحد</button>
+                <button onclick="switchAnalysisTab('grades')" id="tabBtn-grades" class="analysis-tab-btn px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors">مقارنة بين الصفوف/الشعب</button>
+                <button onclick="switchAnalysisTab('cycle')" id="tabBtn-cycle" class="analysis-tab-btn px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors">مقارنة حلقة لمادة واحدة</button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-6 flex-1">
+
+                <!-- === النمط 1: مقارنة فصول/اختبارات لصف واحد === -->
+                <div id="analysisTab-single" class="analysis-tab-content space-y-6">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">اختر مجموعة البيانات (الصف - الشعبة - المادة - الحلقة)</label>
+                        <select id="singleModeDataset" onchange="renderSingleModeAnalysis()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-3">متوسط الصف في درجة "نهاية الفصل" حسب الفصل الدراسي</h4>
+                        <div id="termAveragesContainer" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4"></div>
+                        <div class="chart-box"><canvas id="termAveragesChart"></canvas></div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-3">ملخص تقدم الطلاب (نهاية الفصل الأول ↔ نهاية الفصل الثالث)</h4>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-center">
+                            <div id="progressSummaryContainer" class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-4"></div>
+                            <div class="chart-box-sm"><canvas id="progressSummaryChart"></canvas></div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-3">أبرز حالات التقدم والتأخر</h4>
+                        <div id="topCasesContainer" class="grid grid-cols-1 sm:grid-cols-2 gap-4"></div>
+                    </div>
+                </div>
+
+                <!-- === النمط 2: مقارنة بين الصفوف/الشعب === -->
+                <div id="analysisTab-grades" class="analysis-tab-content space-y-6 hidden">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">المادة</label>
+                            <select id="gradesModeSubject" onchange="populateGradesModeCheckboxes()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">الفصل الدراسي المطلوب مقارنته</label>
+                            <select id="gradesModeTerm" onchange="renderGradesModeAnalysis()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option value="term1">الفصل الدراسي الأول</option>
+                                <option value="term2">الفصل الدراسي الثاني</option>
+                                <option value="term3">الفصل الدراسي الثالث</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">اختر الصفوف/الشعب المراد مقارنتها</label>
+                        <div id="gradesModeCheckboxes" class="flex flex-wrap gap-2 p-3 bg-slate-50 border border-slate-200 rounded-xl min-h-[52px]"></div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-3">مقارنة متوسط درجة "نهاية الفصل" المختار</h4>
+                        <div class="chart-box mb-4"><canvas id="gradesComparisonChart"></canvas></div>
+                        <div id="gradesComparisonContainer" class="space-y-3"></div>
+                    </div>
+                </div>
+
+                <!-- === النمط 3: مقارنة حلقة لمادة واحدة عبر عدة اختبارات === -->
+                <div id="analysisTab-cycle" class="analysis-tab-content space-y-6 hidden">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">الحلقة</label>
+                            <select id="cycleModeCycle" onchange="renderCycleModeAnalysis()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none">
+                                <option value="الحلقة الأولى (1-4)">الحلقة الأولى (1-4)</option>
+                                <option value="الحلقة الثانية (5-8)">الحلقة الثانية (5-8)</option>
+                                <option value="الحلقة الثالثة (9-12)">الحلقة الثالثة (9-12)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">المادة</label>
+                            <select id="cycleModeSubject" onchange="renderCycleModeAnalysis()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none"></select>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-3">متوسط الحلقة عبر أنواع الاختبارات المختلفة</h4>
+                        <div class="chart-box mb-4"><canvas id="cycleComparisonChart"></canvas></div>
+                        <div id="cycleComparisonContainer" class="space-y-3"></div>
+                    </div>
+                </div>
+
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
+                <button onclick="closeAnalysisModal()" class="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm transition-colors">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة تعديل درجات طالب -->
+    <div id="editStudentModal" class="fixed inset-0 bg-slate-900/50 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[90vh] flex flex-col overflow-hidden">
+            <div class="p-5 bg-indigo-600 text-white flex justify-between items-center">
+                <h3 class="text-lg font-bold">تعديل درجات الطالب</h3>
+                <button onclick="closeEditStudentModal()" class="text-white hover:text-indigo-200 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4">
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">اسم الطالب</label>
+                    <input type="text" id="editStudentName" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none font-bold">
+                </div>
+                <div id="editStudentScoresContainer" class="space-y-3"></div>
+                <p class="text-xs text-slate-400">اترك أي خانة فارغة إذا كانت غير مُدخلة أصلاً. لحذف درجة موجودة بالكامل، امسح الرقمين (الدرجة والدرجة الكلية) معاً.</p>
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+                <button onclick="closeEditStudentModal()" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 font-medium transition-colors">إلغاء</button>
+                <button onclick="saveEditedStudent()" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors">حفظ التعديلات</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة توليد تقرير النسب المئوية -->
+    <div id="percentageReportModal" class="fixed inset-0 bg-slate-900/50 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="p-5 bg-amber-500 text-white flex justify-between items-center no-print">
+                <h3 class="text-lg font-bold">توليد تقرير نسب التحصيل</h3>
+                <button onclick="closePercentageReportModal()" class="text-white hover:text-amber-100 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-5">
+
+                <!-- إعدادات التقرير (لا تظهر عند الطباعة) -->
+                <div class="space-y-4 no-print">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">مجموعة البيانات (الصف - الشعبة - المادة - الحلقة)</label>
+                        <select id="reportDataset" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none"></select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">معيار الدرجة المطلوب حسابه</label>
+                        <select id="reportBasis" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none">
+                            <option value="average">المعدل العام (متوسط كل الاختبارات المُدخلة)</option>
+                            <option value="final_term1">نهاية الفصل الدراسي الأول</option>
+                            <option value="final_term2">نهاية الفصل الدراسي الثاني</option>
+                            <option value="final_term3">نهاية الفصل الدراسي الثالث</option>
+                            <option value="diagnostic">الاختبار التشخيصي</option>
+                            <option value="formative1">التكويني الأول</option>
+                            <option value="formative2">التكويني الثاني</option>
+                            <option value="school">اختبار المدرسة</option>
+                            <option value="central">الاختبار المركزي</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">الحدود المطلوب حساب نسبتها (%)</label>
+                        <div id="reportThresholdsList" class="space-y-2"></div>
+                        <button onclick="addThresholdInput()" class="mt-2 text-sm text-amber-600 hover:text-amber-700 font-bold flex items-center gap-1">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+                            إضافة حد آخر
+                        </button>
+                    </div>
+                    <button onclick="generatePercentageReport()" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-2.5 rounded-xl transition-colors">توليد التقرير</button>
+                </div>
+
+                <!-- ترويسة تظهر فقط عند الطباعة -->
+                <div class="print-only border-b-2 border-slate-800 pb-4 mb-2">
+                    <div class="flex items-center gap-3 mb-3">
+                        <img src="data:image/png;base64,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" alt="شعار المدرسة" class="h-16 w-16 object-contain">
+                        <div>
+                            <p class="text-lg font-extrabold">مدرسة السلف الصالح الخاصة</p>
+                            <h2 class="text-xl font-bold">تقرير نسب التحصيل الدراسي</h2>
+                        </div>
+                    </div>
+                    <div id="reportPrintSummary" class="text-sm leading-6"></div>
+                </div>
+
+                <!-- نتائج التقرير (تظهر على الشاشة وعند الطباعة) -->
+                <div id="reportResultsContainer" class="space-y-3"></div>
+
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 no-print">
+                <button onclick="printPercentageReport()" id="reportPrintBtn" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors flex items-center gap-2" disabled>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4H7v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" /></svg>
+                    طباعة / حفظ PDF
+                </button>
+                <button onclick="closePercentageReportModal()" class="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm transition-colors">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="max-w-7xl mx-auto space-y-6">
+        
+        <header class="bg-gradient-to-br from-indigo-700 to-indigo-900 p-6 md:p-10 rounded-2xl shadow-lg text-center relative overflow-hidden">
+            <div class="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+            <div class="absolute bottom-0 left-0 w-48 h-48 bg-amber-400/10 rounded-full -ml-20 -mb-20 blur-3xl"></div>
+            <div class="relative z-10 flex flex-col items-center gap-2">
+                <div class="bg-white p-2 rounded-2xl mb-1 shadow-md">
+                    <img src="data:image/png;base64,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" alt="شعار مدرسة السلف الصالح الخاصة" class="h-14 w-14 object-contain">
+                </div>
+                <p class="text-amber-300 text-sm md:text-base font-extrabold">مدرسة السلف الصالح الخاصة</p>
+                <h1 class="text-2xl md:text-3xl font-extrabold text-white">سجل تحليل وتوحيد الدرجات</h1>
+                <p class="text-indigo-100 text-sm md:text-base">حفظ تلقائي للبيانات وتحويلها لمقياس 100 مع تقسيمات الفصول والاختبارات والمقارنات البيانية</p>
+            </div>
+        </header>
+
+        <!-- لوحة الإعدادات الشاملة -->
+        <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 relative z-20">
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">العام الأكاديمي</label>
+                <select id="academicYear" onchange="onDatasetContextChange();" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all outline-none">
+                    <option value="2025/2026">2025 / 2026</option>
+                    <option value="2026/2027" selected>2026 / 2027</option>
+                    <option value="2027/2028">2027 / 2028</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">المادة الدراسية</label>
+                <select id="subjectName" onchange="onDatasetContextChange();" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all outline-none">
+                    <option value="اللغة العربية">اللغة العربية</option>
+                    <option value="الرياضيات">الرياضيات</option>
+                    <option value="العلوم">العلوم</option>
+                    <option value="الفيزياء">الفيزياء</option>
+                    <option value="الكيمياء">الكيمياء</option>
+                    <option value="الأحياء">الأحياء</option>
+                    <option value="الدراسات الاجتماعية">الدراسات الاجتماعية</option>
+                    <option value="اللغة الإنجليزية">اللغة الإنجليزية</option>
+                    <option value="التربية الإسلامية">التربية الإسلامية</option>
+                    <option value="تقنية المعلومات">تقنية المعلومات</option>
+                    <option value="الفنون التشكيلية">الفنون التشكيلية</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">الحلقة</label>
+                <select id="studyCycle" onchange="onDatasetContextChange();" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all outline-none">
+                    <option value="الحلقة الأولى (1-4)">الحلقة الأولى (1-4)</option>
+                    <option value="الحلقة الثانية (5-8)">الحلقة الثانية (5-8)</option>
+                    <option value="الحلقة الثالثة (9-12)">الحلقة الثالثة (9-12)</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">الصف</label>
+                <select id="gradeLevel" onchange="onDatasetContextChange();" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all outline-none">
+                    <option value="الصف الأول">الصف الأول</option>
+                    <option value="الصف الثاني">الصف الثاني</option>
+                    <option value="الصف الثالث">الصف الثالث</option>
+                    <option value="الصف الرابع">الصف الرابع</option>
+                    <option value="الصف الخامس">الصف الخامس</option>
+                    <option value="الصف السادس">الصف السادس</option>
+                    <option value="الصف السابع">الصف السابع</option>
+                    <option value="الصف الثامن">الصف الثامن</option>
+                    <option value="الصف التاسع">الصف التاسع</option>
+                    <option value="الصف العاشر">الصف العاشر</option>
+                    <option value="الصف الحادي عشر">الصف الحادي عشر</option>
+                    <option value="الصف الثاني عشر">الصف الثاني عشر</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">الشعبة</label>
+                <select id="sectionName" onchange="onDatasetContextChange();" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all outline-none">
+                    <option value="1">الشعبة 1</option>
+                    <option value="2">الشعبة 2</option>
+                    <option value="3">الشعبة 3</option>
+                    <option value="4">الشعبة 4</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">الفصل الدراسي</label>
+                <select id="term" onchange="saveSettings(); updateReportHeader(); renderTable();" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all outline-none">
+                    <option value="الفصل الدراسي الأول" selected>الفصل الدراسي الأول</option>
+                    <option value="الفصل الدراسي الثاني">الفصل الدراسي الثاني</option>
+                    <option value="الفصل الدراسي الثالث">الفصل الدراسي الثالث</option>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-1.5">اسم المعلم</label>
+                <input type="text" id="teacherName" onchange="saveSettings(); updateReportHeader();" placeholder="اكتب اسم المعلم" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 transition-all outline-none">
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- Single Input -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5 relative">
+                <div class="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <div class="w-8 h-8 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center font-bold">1</div>
+                    <h2 class="text-lg font-bold text-slate-800">إدخال درجات (طالب واحد)</h2>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">نوع التقييم</label>
+                        <select id="singleCategory" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                            <option value="diagnostic">اختبار تشخيصي</option>
+                            <option value="formative1">اختبار تكويني 1</option>
+                            <option value="formative2">اختبار تكويني 2</option>
+                            <option value="school">اختبارات مدرسية</option>
+                            <option value="central">اختبارات مركزية</option>
+                            <option value="final">درجة نهاية الفصل</option>
+                        </select>
+                    </div>
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">الدرجة الكلية (للاختبار)</label>
+                        <input type="text" inputmode="decimal" id="singleMax" value="20" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">اسم الطالب</label>
+                    <input type="text" id="singleName" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="أدخل اسم الطالب">
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-1.5">الدرجة المحصول عليها</label>
+                    <input type="text" inputmode="decimal" id="singleScore" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none" placeholder="مثال: 15.5">
+                </div>
+                
+                <button onclick="addSingle()" class="w-full bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white font-bold py-3 rounded-xl transition-colors shadow-sm flex justify-center items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clip-rule="evenodd" /></svg>
+                    إضافة / تحديث درجة الطالب
+                </button>
+            </div>
+
+            <!-- Batch Input -->
+            <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 space-y-5 relative">
+                 <div class="flex items-center gap-2 border-b border-slate-100 pb-3">
+                    <div class="w-8 h-8 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center font-bold">2</div>
+                    <h2 class="text-lg font-bold text-slate-800">إدخال جماعي منفصل (نسخ ولصق)</h2>
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">نوع التقييم للدفعة</label>
+                        <select id="batchCategory" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none">
+                            <option value="diagnostic">اختبار تشخيصي</option>
+                            <option value="formative1">اختبار تكويني 1</option>
+                            <option value="formative2">اختبار تكويني 2</option>
+                            <option value="school">اختبارات مدرسية</option>
+                            <option value="central">اختبارات مركزية</option>
+                            <option value="final">درجة نهاية الفصل</option>
+                        </select>
+                    </div>
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">الدرجة الكلية (للاختبار)</label>
+                        <input type="text" inputmode="decimal" id="batchMax" value="50" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none">
+                    </div>
+                </div>
+                
+                <!-- تم تصحيح وترتيب الأعمدة بحيث تكون الأسماء يميناً والدرجات يساراً بما يتوافق مع تخطيط الصفحة -->
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">عمود الأسماء (كل اسم في سطر)</label>
+                        <textarea id="batchNames" rows="4" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-all outline-none text-sm resize-none custom-scrollbar" placeholder="أحمد محمد&#10;فاطمة علي"></textarea>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">عمود الدرجات (كل درجة في سطر)</label>
+                        <textarea id="batchScores" rows="4" class="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 transition-all outline-none font-mono text-sm resize-none custom-scrollbar text-center" placeholder="45&#10;48.5"></textarea>
+                    </div>
+                </div>
+                
+                <button onclick="addBatch()" class="w-full bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white font-bold py-3 rounded-xl transition-colors shadow-sm flex justify-center items-center gap-2 cursor-pointer">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd" /></svg>
+                    معالجة وإضافة للجدول
+                </button>
+            </div>
+
+        </div>
+
+        <div id="statsContainer" class="grid grid-cols-1 md:grid-cols-3 gap-4 hidden">
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-500">متوسط المعدل العام للفصل</p>
+                    <p id="statAvg" class="text-2xl font-bold text-slate-900 mt-1">0%</p>
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-500">أعلى معدل عام</p>
+                    <p id="statMax" class="text-2xl font-bold text-slate-900 mt-1">0</p>
+                </div>
+            </div>
+            <div class="bg-white p-5 rounded-2xl shadow-sm border border-slate-200 flex items-center gap-4">
+                <div class="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center text-rose-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6" /></svg>
+                </div>
+                <div>
+                    <p class="text-sm font-semibold text-slate-500">نسبة الرسوب (% / حد النجاح)</p>
+                    <p id="statFailRate" class="text-2xl font-bold text-rose-600 mt-1">0%</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- نسب التقديرات التفصيلية -->
+        <div id="gradeDistributionContainer" class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 hidden">
+            <h3 class="font-bold text-slate-800 mb-4 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" /></svg>
+                توزيع نسب وعدادات التقديرات للطلاب (حسب معيار الصف الحالي)
+            </h3>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 items-center">
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-2 gap-4 lg:col-span-2">
+                    <div class="bg-emerald-50 border border-emerald-100 p-4 rounded-xl text-center">
+                        <span class="text-xs font-bold text-emerald-600 block mb-1">ممتاز (90% فأكثر)</span>
+                        <span id="countExc" class="text-lg font-extrabold text-emerald-900">0</span>
+                        <span id="percExc" class="text-xs text-emerald-600 block mt-1">(0%)</span>
+                    </div>
+                    <div class="bg-blue-50 border border-blue-100 p-4 rounded-xl text-center">
+                        <span class="text-xs font-bold text-blue-600 block mb-1">جيد جداً (80-89%)</span>
+                        <span id="countVgood" class="text-lg font-extrabold text-blue-900">0</span>
+                        <span id="percVgood" class="text-xs text-blue-600 block mt-1">(0%)</span>
+                    </div>
+                    <div class="bg-amber-50 border border-amber-100 p-4 rounded-xl text-center">
+                        <span class="text-xs font-bold text-amber-600 block mb-1">جيد (70-79%)</span>
+                        <span id="countGood" class="text-lg font-extrabold text-amber-900">0</span>
+                        <span id="percGood" class="text-xs text-amber-600 block mt-1">(0%)</span>
+                    </div>
+                    <div class="bg-orange-50 border border-orange-100 p-4 rounded-xl text-center">
+                        <span class="text-xs font-bold text-orange-600 block mb-1">مقبول (نسبة النجاح إلى 69%)</span>
+                        <span id="countPass" class="text-lg font-extrabold text-orange-900">0</span>
+                        <span id="percPass" class="text-xs text-orange-600 block mt-1">(0%)</span>
+                    </div>
+                    <div class="bg-rose-50 border border-rose-100 p-4 rounded-xl text-center col-span-2 sm:col-span-1">
+                        <span id="failLabelTitle" class="text-xs font-bold text-rose-600 block mb-1">راسب (أقل من الحد)</span>
+                        <span id="countFail" class="text-lg font-extrabold text-rose-900">0</span>
+                        <span id="percFail" class="text-xs text-rose-600 block mt-1">(0%)</span>
+                    </div>
+                </div>
+                <div class="chart-box-sm lg:col-span-1">
+                    <canvas id="gradeDistributionChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col">
+            <div class="p-4 md:p-6 border-b border-slate-200 flex flex-wrap justify-between items-center gap-4 bg-slate-50/50">
+                <div class="flex items-center gap-3">
+                    <h2 class="font-bold text-lg text-slate-900">سجل الطلاب والدرجات المحولة</h2>
+                    <span id="studentCount" class="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full">0 طالب</span>
+                </div>
+                
+                <div id="reportHeaderInfo" class="text-sm font-semibold text-slate-500 flex flex-wrap items-center gap-2">
+                    <!-- Will be populated by JS -->
+                </div>
+
+                <div class="flex items-center gap-2 flex-wrap">
+                    <button onclick="openPercentageReportModal()" class="text-sm bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                        توليد تقرير نسب PDF
+                    </button>
+                    <button onclick="openAnalysisModal()" class="text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                        التحليل الشامل للفصول الثلاثة
+                    </button>
+                    <button onclick="requestClearAll()" class="text-sm bg-white border border-rose-200 text-rose-600 hover:bg-rose-50 hover:border-rose-300 font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        حذف الكل
+                    </button>
+                </div>
+            </div>
+            
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-right border-collapse whitespace-nowrap min-w-[900px]">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+                            <th class="p-3 font-semibold w-12 text-center">#</th>
+                            <th class="p-3 font-bold w-48 text-slate-900">اسم الطالب</th>
+                            <th class="p-3 font-semibold text-center border-r border-slate-200">تشخيصي</th>
+                            <th class="p-3 font-semibold text-center border-r border-slate-200">تكويني 1</th>
+                            <th class="p-3 font-semibold text-center border-r border-slate-200">تكويني 2</th>
+                            <th class="p-3 font-semibold text-center border-r border-slate-200">مدرسي</th>
+                            <th class="p-3 font-semibold text-center border-r border-slate-200">مركزي</th>
+                            <th class="p-3 font-semibold text-center border-r border-slate-200">نهاية الفصل</th>
+                            <th class="p-3 font-bold text-center border-r-2 border-slate-300 bg-blue-50/50">المعدل</th>
+                            <th class="p-3 font-semibold text-center">التقدير</th>
+                            <th class="p-3 font-semibold text-center w-16">إجراء</th>
+                        </tr>
+                    </thead>
+                    <tbody id="resultsTable" class="divide-y divide-slate-100 text-sm">
+                        <!-- Data will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- مقارنة تقدم الطلاب بين الفصل الأول والفصل الثالث -->
+        <div id="progressComparisonContainer" class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden flex flex-col hidden">
+            <div class="p-4 md:p-6 border-b border-slate-200 bg-slate-50/50">
+                <h2 class="font-bold text-lg text-slate-900 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                    مقارنة تقدم الطلاب (نهاية الفصل الأول ↔ نهاية الفصل الثالث)
+                </h2>
+                <p class="text-xs text-slate-500 mt-1">تُحسب المقارنة تلقائياً لمن أُدخلت له درجة "نهاية الفصل" في كلا الفصلين الأول والثالث. تصنيف التقدم: انخفاض 5 درجات فأكثر = تأخر، ارتفاع 5 درجات فأكثر = تقدم، وإذا كانت درجة الفصل الأول فوق 95% وارتفعت (ولو بأقل من 5) تُعتبر تقدماً، وإذا كانت بين 96% و100% وبقيت ثابتة تُعتبر تقدماً أيضاً.</p>
+            </div>
+            <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-right border-collapse whitespace-nowrap min-w-[700px]">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-600 text-sm border-b border-slate-200">
+                            <th class="p-3 font-semibold w-12 text-center">#</th>
+                            <th class="p-3 font-bold w-48 text-slate-900">اسم الطالب</th>
+                            <th class="p-3 font-semibold text-center border-r border-slate-200">نهاية الفصل الأول</th>
+                            <th class="p-3 font-semibold text-center border-r border-slate-200">نهاية الفصل الثالث</th>
+                            <th class="p-3 font-semibold text-center border-r border-slate-200">الفرق</th>
+                            <th class="p-3 font-semibold text-center border-r border-slate-200">التقييم</th>
+                        </tr>
+                    </thead>
+                    <tbody id="progressComparisonTable" class="divide-y divide-slate-100 text-sm">
+                        <!-- Data will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- تذييل الصفحة -->
+        <footer class="text-center text-xs text-slate-400 py-4">
+            <p>© 2026 مدرسة السلف الصالح الخاصة - جميع الحقوق محفوظة</p>
+        </footer>
+
+    </div>
+
+    <script>
+        // State management
+        let students = [];
+        let idCounter = 1;
+        let datasets = {};
+        let currentDatasetKey = null;
+        const chartInstances = {};
+
+        // إنشاء أو تحديث رسم بياني بأمان (يحذف الرسم القديم أولاً لتفادي تعارض Chart.js)
+        function renderChart(canvasId, config) {
+            const canvas = document.getElementById(canvasId);
+            if (!canvas) return;
+            if (chartInstances[canvasId]) {
+                chartInstances[canvasId].destroy();
+            }
+            chartInstances[canvasId] = new Chart(canvas.getContext('2d'), config);
+        }
+
+        const CHART_FONT = { family: "'Tajawal', sans-serif" };
+
+        // تحويل الأرقام العربية (الهندية) إلى أرقام إنجليزية حتى تُقبل في الحسابات
+        function normalizeDigits(str) {
+            if (typeof str !== 'string') return str;
+            const arabicIndic = '٠١٢٣٤٥٦٧٨٩';
+            const extArabicIndic = '۰۱۲۳۴۵۶۷۸۹';
+            return str.replace(/[٠-٩۰-۹]/g, function (ch) {
+                let idx = arabicIndic.indexOf(ch);
+                if (idx !== -1) return idx.toString();
+                idx = extArabicIndic.indexOf(ch);
+                if (idx !== -1) return idx.toString();
+                return ch;
+            });
+        }
+
+        const categoriesList = ['diagnostic', 'formative1', 'formative2', 'school', 'central', 'final'];
+
+        // تحويل قيمة قائمة "الفصل الدراسي" إلى مفتاح داخلي (term1/term2/term3)
+        function getTermKey() {
+            const termVal = document.getElementById('term').value;
+            if (termVal === 'الفصل الدراسي الثاني') return 'term2';
+            if (termVal === 'الفصل الدراسي الثالث') return 'term3';
+            return 'term1';
+        }
+
+        // === نظام تعدد مجموعات البيانات (كل صف + شعبة + مادة + حلقة + عام = مجموعة بيانات مستقلة) ===
+
+        function getDatasetKey(year, subject, grade, section, cycle) {
+            return [year, subject, grade, section, cycle].join('||');
+        }
+
+        function getCurrentContext() {
+            return {
+                year: document.getElementById('academicYear').value,
+                subject: document.getElementById('subjectName').value,
+                grade: document.getElementById('gradeLevel').value,
+                section: document.getElementById('sectionName').value,
+                cycle: document.getElementById('studyCycle').value
+            };
+        }
+
+        // تُستدعى عند تغيير أي من (العام/المادة/الحلقة/الصف/الشعبة) لأنها تحدد مجموعة بيانات مختلفة
+        function onDatasetContextChange() {
+            saveSettings();
+            switchToCurrentDataset();
+            updateReportHeader();
+            renderTable();
+        }
+
+        // التبديل إلى مجموعة البيانات المطابقة للإعدادات الحالية (وإنشاؤها إن لم تكن موجودة)
+        function switchToCurrentDataset() {
+            const ctx = getCurrentContext();
+            const key = getDatasetKey(ctx.year, ctx.subject, ctx.grade, ctx.section, ctx.cycle);
+
+            if (!datasets[key]) {
+                datasets[key] = { meta: ctx, students: [] };
+            } else {
+                datasets[key].meta = ctx;
+            }
+
+            currentDatasetKey = key;
+            students = datasets[key].students;
+            idCounter = students.length > 0 ? Math.max(...students.map(s => s.id || 0)) + 1 : 1;
+        }
+
+        function getDatasetLabel(meta) {
+            return `${meta.grade} - الشعبة ${meta.section} - ${meta.subject} - ${meta.cycle}`;
+        }
+
+        // Storage Keys
+        const STORAGE_KEY_DATASETS = 'grade_analyzer_datasets_v1';
+        const STORAGE_KEY_STUDENTS_LEGACY = 'grade_analyzer_students_v1';
+        const STORAGE_KEY_SETTINGS = 'grade_analyzer_settings_v1';
+
+
+        function showToast(message, type = 'success') {
+            const toast = document.getElementById('toast');
+            const toastMessage = document.getElementById('toastMessage');
+            const toastIcon = document.getElementById('toastIcon');
+            
+            toastMessage.innerText = message;
+            if(type === 'success') {
+                toast.className = "fixed top-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-xl text-white opacity-100 transition-opacity duration-300 z-50 flex items-center gap-2 bg-emerald-600";
+                toastIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>';
+            } else {
+                toast.className = "fixed top-5 left-1/2 transform -translate-x-1/2 px-6 py-3 rounded-lg shadow-xl text-white opacity-100 transition-opacity duration-300 z-50 flex items-center gap-2 bg-rose-600";
+                toastIcon.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>';
+            }
+
+            setTimeout(() => {
+                toast.style.opacity = '0';
+            }, 3000);
+        }
+
+        function requestClearAll() {
+            const modal = document.getElementById('confirmModal');
+            const ctx = getCurrentContext();
+            const msgEl = modal.querySelector('p');
+            if (msgEl) {
+                msgEl.textContent = `هل أنت متأكد أنك تريد حذف جميع طلاب (${getDatasetLabel(ctx)})؟ لا يمكن التراجع عن هذا الإجراء، ولن تتأثر بيانات الصفوف/الشعب الأخرى.`;
+            }
+            modal.classList.remove('hidden');
+        }
+
+        function closeModal() {
+            const modal = document.getElementById('confirmModal');
+            modal.classList.add('hidden');
+        }
+
+        function openAnalysisModal() {
+            populateSingleModeDataset();
+            populateGradesModeSubjects();
+            populateCycleModeSubjects();
+
+            switchAnalysisTab('single');
+            document.getElementById('analysisModal').classList.remove('hidden');
+        }
+
+        function closeAnalysisModal() {
+            document.getElementById('analysisModal').classList.add('hidden');
+        }
+
+        // === توليد تقرير نسب التحصيل (PDF عبر الطباعة) ===
+
+        const REPORT_BASIS_LABELS = {
+            average: 'المعدل العام',
+            final_term1: 'نهاية الفصل الدراسي الأول',
+            final_term2: 'نهاية الفصل الدراسي الثاني',
+            final_term3: 'نهاية الفصل الدراسي الثالث',
+            diagnostic: 'الاختبار التشخيصي',
+            formative1: 'التكويني الأول',
+            formative2: 'التكويني الثاني',
+            school: 'اختبار المدرسة',
+            central: 'الاختبار المركزي'
+        };
+
+        function openPercentageReportModal() {
+            const select = document.getElementById('reportDataset');
+            const list = getAllDatasetsList();
+            select.innerHTML = list.map(d => `<option value="${d.key}">${getDatasetLabel(d.meta)} (${d.students.length} طالب)</option>`).join('');
+            if (currentDatasetKey && datasets[currentDatasetKey]) {
+                select.value = currentDatasetKey;
+            }
+
+            document.getElementById('reportThresholdsList').innerHTML = '';
+            [70, 80, 90].forEach(v => addThresholdInput(v));
+
+            document.getElementById('reportResultsContainer').innerHTML = '';
+            document.getElementById('reportPrintBtn').disabled = true;
+
+            document.getElementById('percentageReportModal').classList.remove('hidden');
+        }
+
+        function closePercentageReportModal() {
+            document.getElementById('percentageReportModal').classList.add('hidden');
+        }
+
+        let thresholdInputCounter = 0;
+        function addThresholdInput(value) {
+            const id = 'threshold-' + (thresholdInputCounter++);
+            const container = document.getElementById('reportThresholdsList');
+            const row = document.createElement('div');
+            row.className = 'flex items-center gap-2';
+            row.id = id;
+            row.innerHTML = `
+                <span class="text-sm text-slate-600">الحاصلون على</span>
+                <input type="text" inputmode="decimal" class="threshold-input w-20 px-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-amber-500 text-sm text-center" value="${value !== undefined ? value : ''}" placeholder="70">
+                <span class="text-sm text-slate-600">فما فوق</span>
+                <button onclick="document.getElementById('${id}').remove()" class="text-slate-400 hover:text-rose-600 mr-auto">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            `;
+            container.appendChild(row);
+        }
+
+        // حساب درجة الطالب حسب المعيار المطلوب (مستقل عن الفصل/السياق المختار في الشاشة الرئيسية)
+        function getStudentScoreForBasis(student, basisKey) {
+            if (basisKey === 'average') {
+                const keys = ['diagnostic', 'formative1', 'formative2', 'school', 'central', 'final_term1', 'final_term2', 'final_term3'];
+                const values = keys.map(k => student.scores[k] ? student.scores[k].norm : null).filter(v => v !== null);
+                if (values.length === 0) return null;
+                return values.reduce((a, b) => a + b, 0) / values.length;
+            }
+            return student.scores[basisKey] ? student.scores[basisKey].norm : null;
+        }
+
+        function generatePercentageReport() {
+            const datasetKey = document.getElementById('reportDataset').value;
+            const ds = datasets[datasetKey];
+            if (!ds) {
+                showToast('الرجاء اختيار مجموعة بيانات صحيحة', 'error');
+                return;
+            }
+
+            const basisKey = document.getElementById('reportBasis').value;
+            const thresholdInputs = Array.from(document.querySelectorAll('.threshold-input'));
+            const thresholds = thresholdInputs
+                .map(inp => parseFloat(normalizeDigits(inp.value.trim())))
+                .filter(v => !isNaN(v));
+
+            if (thresholds.length === 0) {
+                showToast('الرجاء إدخال حد واحد على الأقل', 'error');
+                return;
+            }
+
+            const scores = ds.students.map(s => getStudentScoreForBasis(s, basisKey)).filter(v => v !== null);
+            const totalWithScore = scores.length;
+
+            const rows = thresholds
+                .sort((a, b) => a - b)
+                .map(threshold => {
+                    const count = scores.filter(v => v >= threshold).length;
+                    const percentage = totalWithScore > 0 ? (count / totalWithScore * 100) : 0;
+                    return { threshold, count, percentage };
+                });
+
+            const container = document.getElementById('reportResultsContainer');
+            container.innerHTML = `
+                <p class="text-sm text-slate-600 mb-2">إجمالي عدد الطلاب الذين لديهم درجة في "${REPORT_BASIS_LABELS[basisKey]}": <span class="font-bold">${totalWithScore}</span> من أصل ${ds.students.length} طالب</p>
+            ` + rows.map(r => `
+                <div class="bg-white border border-slate-200 rounded-xl p-4">
+                    <div class="flex justify-between items-center text-sm mb-2">
+                        <span class="font-bold text-slate-800">الحاصلون على ${r.threshold}% فما فوق</span>
+                        <span class="font-bold text-amber-700">${r.percentage.toFixed(1)}% <span class="text-xs text-slate-400 font-normal">(${r.count} من ${totalWithScore} طالب)</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-3">
+                        <div class="bg-amber-500 h-3 rounded-full" style="width: ${r.percentage}%"></div>
+                    </div>
+                </div>
+            `).join('');
+
+            // تجهيز الترويسة الخاصة بالطباعة
+            const now = new Date();
+            const generatedLabel = now.toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric' }) +
+                ' - ' + now.toLocaleTimeString('ar-AE', { hour: '2-digit', minute: '2-digit' });
+
+            document.getElementById('reportPrintSummary').innerHTML = `
+                <span class="font-bold">${getDatasetLabel(ds.meta)}</span> &nbsp;|&nbsp;
+                <span class="font-bold">معيار التقرير:</span> ${REPORT_BASIS_LABELS[basisKey]} &nbsp;|&nbsp;
+                <span class="font-bold">تاريخ الإصدار:</span> ${generatedLabel}
+            `;
+
+            document.getElementById('reportPrintBtn').disabled = false;
+        }
+
+        function printPercentageReport() {
+            document.body.classList.add('printing-report');
+            window.print();
+        }
+
+        window.addEventListener('afterprint', () => {
+            document.body.classList.remove('printing-report');
+        });
+
+        function switchAnalysisTab(tab) {
+            ['single', 'grades', 'cycle'].forEach(t => {
+                document.getElementById('analysisTab-' + t).classList.toggle('hidden', t !== tab);
+                document.getElementById('tabBtn-' + t).classList.toggle('active', t === tab);
+            });
+            if (tab === 'single') renderSingleModeAnalysis();
+            if (tab === 'grades') { populateGradesModeCheckboxes(); }
+            if (tab === 'cycle') renderCycleModeAnalysis();
+        }
+
+        // كل مجموعات البيانات المحفوظة كمصفوفة، مرتبة حسب التسمية
+        function getAllDatasetsList() {
+            return Object.keys(datasets).map(key => ({ key, meta: datasets[key].meta, students: datasets[key].students }))
+                .sort((a, b) => getDatasetLabel(a.meta).localeCompare(getDatasetLabel(b.meta), 'ar'));
+        }
+
+        // === النمط 1: مقارنة فصول/اختبارات لصف واحد ===
+
+        function populateSingleModeDataset() {
+            const select = document.getElementById('singleModeDataset');
+            const list = getAllDatasetsList();
+            select.innerHTML = list.map(d => `<option value="${d.key}">${getDatasetLabel(d.meta)} (${d.students.length} طالب)</option>`).join('');
+            if (currentDatasetKey && datasets[currentDatasetKey]) {
+                select.value = currentDatasetKey;
+            }
+        }
+
+        function renderSingleModeAnalysis() {
+            const key = document.getElementById('singleModeDataset').value;
+            const targetStudents = (datasets[key] && datasets[key].students) ? datasets[key].students : [];
+            renderTermAverages(targetStudents);
+            renderProgressSummary(targetStudents);
+            renderTopCases(targetStudents);
+        }
+
+        // متوسط الصف في درجة "نهاية الفصل" لكل فصل دراسي على حدة
+        function renderTermAverages(targetStudents) {
+            const container = document.getElementById('termAveragesContainer');
+            const termDefs = [
+                { key: 'final_term1', label: 'الفصل الدراسي الأول', bg: 'bg-blue-50', border: 'border-blue-100', text: 'text-blue-700', num: 'text-blue-900', chartColor: '#3b82f6' },
+                { key: 'final_term2', label: 'الفصل الدراسي الثاني', bg: 'bg-violet-50', border: 'border-violet-100', text: 'text-violet-700', num: 'text-violet-900', chartColor: '#8b5cf6' },
+                { key: 'final_term3', label: 'الفصل الدراسي الثالث', bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-700', num: 'text-emerald-900', chartColor: '#10b981' }
+            ];
+
+            const averages = [];
+
+            container.innerHTML = termDefs.map(term => {
+                const values = targetStudents
+                    .map(s => s.scores[term.key] ? s.scores[term.key].norm : null)
+                    .filter(v => v !== null);
+
+                const avg = values.length > 0
+                    ? parseFloat((values.reduce((a, b) => a + b, 0) / values.length).toFixed(1))
+                    : null;
+                averages.push(avg);
+
+                return `
+                    <div class="${term.bg} border ${term.border} p-4 rounded-xl text-center">
+                        <span class="text-xs font-bold ${term.text} block mb-1">${term.label}</span>
+                        <span class="text-2xl font-extrabold ${term.num}">${avg !== null ? avg + '%' : '-'}</span>
+                        <span class="text-xs ${term.text} block mt-1">${values.length} طالب لديه درجة</span>
+                    </div>
+                `;
+            }).join('');
+
+            renderChart('termAveragesChart', {
+                type: 'bar',
+                data: {
+                    labels: termDefs.map(t => t.label),
+                    datasets: [{
+                        label: 'متوسط الصف %',
+                        data: averages.map(a => a === null ? 0 : a),
+                        backgroundColor: termDefs.map(t => t.chartColor),
+                        borderRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, max: 100, ticks: { font: CHART_FONT } },
+                        x: { ticks: { font: CHART_FONT } }
+                    }
+                }
+            });
+        }
+
+        // ملخص أعداد الطلاب حسب تصنيف التقدم (تقدم / ثابت / تأخر)
+        function renderProgressSummary(targetStudents) {
+            const container = document.getElementById('progressSummaryContainer');
+            const comparableStudents = targetStudents.filter(s => s.scores.final_term1 && s.scores.final_term3);
+
+            const counts = { 'تقدم': 0, 'ثابت': 0, 'تأخر': 0 };
+            comparableStudents.forEach(s => {
+                const result = classifyProgress(s.scores.final_term1.norm, s.scores.final_term3.norm);
+                if (result) counts[result.label]++;
+            });
+
+            const total = comparableStudents.length;
+            const cards = [
+                { key: 'تقدم', label: 'تقدم', bg: 'bg-emerald-50', border: 'border-emerald-100', text: 'text-emerald-700', num: 'text-emerald-900' },
+                { key: 'ثابت', label: 'ثابت', bg: 'bg-slate-50', border: 'border-slate-200', text: 'text-slate-700', num: 'text-slate-900' },
+                { key: 'تأخر', label: 'تأخر', bg: 'bg-rose-50', border: 'border-rose-100', text: 'text-rose-700', num: 'text-rose-900' }
+            ];
+
+            if (total === 0) {
+                container.innerHTML = `<div class="col-span-3 text-center text-sm text-slate-400 py-4">لا توجد بيانات كافية للمقارنة (تحتاج درجة "نهاية الفصل" في الفصلين الأول والثالث).</div>`;
+                if (chartInstances['progressSummaryChart']) {
+                    chartInstances['progressSummaryChart'].destroy();
+                    delete chartInstances['progressSummaryChart'];
+                }
+                return;
+            }
+
+            container.innerHTML = cards.map(c => `
+                <div class="${c.bg} border ${c.border} p-4 rounded-xl text-center">
+                    <span class="text-xs font-bold ${c.text} block mb-1">${c.label}</span>
+                    <span class="text-2xl font-extrabold ${c.num}">${counts[c.key]}</span>
+                    <span class="text-xs ${c.text} block mt-1">(${((counts[c.key] / total) * 100).toFixed(1)}%)</span>
+                </div>
+            `).join('');
+
+            renderChart('progressSummaryChart', {
+                type: 'doughnut',
+                data: {
+                    labels: ['تقدم', 'ثابت', 'تأخر'],
+                    datasets: [{
+                        data: [counts['تقدم'], counts['ثابت'], counts['تأخر']],
+                        backgroundColor: ['#10b981', '#94a3b8', '#f43f5e'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', rtl: true, labels: { font: CHART_FONT, boxWidth: 12, padding: 10 } }
+                    }
+                }
+            });
+        }
+
+
+        // أبرز 3 حالات تقدم وأبرز 3 حالات تأخر (حسب نفس تصنيف التقدم المعتمد في الجدول)
+        function renderTopCases(targetStudents) {
+            const container = document.getElementById('topCasesContainer');
+            const comparableStudents = targetStudents
+                .filter(s => s.scores.final_term1 && s.scores.final_term3)
+                .map(s => {
+                    const t1 = s.scores.final_term1.norm;
+                    const t3 = s.scores.final_term3.norm;
+                    return {
+                        name: s.name,
+                        diff: parseFloat((t3 - t1).toFixed(2)),
+                        classification: classifyProgress(t1, t3)
+                    };
+                });
+
+            if (comparableStudents.length === 0) {
+                container.innerHTML = `<div class="col-span-2 text-center text-sm text-slate-400 py-4">لا توجد بيانات كافية.</div>`;
+                return;
+            }
+
+            const topProgress = comparableStudents
+                .filter(s => s.classification && s.classification.label === 'تقدم')
+                .sort((a, b) => b.diff - a.diff)
+                .slice(0, 3);
+            const topRegress = comparableStudents
+                .filter(s => s.classification && s.classification.label === 'تأخر')
+                .sort((a, b) => a.diff - b.diff)
+                .slice(0, 3);
+
+            const renderList = (list, emptyMsg, colorClass) => {
+                if (list.length === 0) return `<p class="text-sm text-slate-400">${emptyMsg}</p>`;
+                return `<ul class="space-y-1.5">` + list.map(s => `
+                    <li class="flex justify-between items-center text-sm bg-slate-50 rounded-lg px-3 py-2">
+                        <span class="font-bold text-slate-800">${s.name}</span>
+                        <span class="font-bold ${colorClass}">${s.diff > 0 ? '+' : ''}${s.diff}</span>
+                    </li>
+                `).join('') + `</ul>`;
+            };
+
+            container.innerHTML = `
+                <div class="border border-emerald-100 bg-emerald-50/50 rounded-xl p-4">
+                    <h5 class="text-sm font-bold text-emerald-800 mb-2">الأكثر تقدماً</h5>
+                    ${renderList(topProgress, 'لا يوجد طلاب متقدمون', 'text-emerald-700')}
+                </div>
+                <div class="border border-rose-100 bg-rose-50/50 rounded-xl p-4">
+                    <h5 class="text-sm font-bold text-rose-800 mb-2">الأكثر تأخراً</h5>
+                    ${renderList(topRegress, 'لا يوجد طلاب متأخرون', 'text-rose-700')}
+                </div>
+            `;
+        }
+
+        // === النمط 2: مقارنة بين الصفوف/الشعب (لمادة واحدة) ===
+
+        function getAllSubjectsInUse() {
+            const subjects = new Set();
+            Object.values(datasets).forEach(ds => subjects.add(ds.meta.subject));
+            return Array.from(subjects).sort((a, b) => a.localeCompare(b, 'ar'));
+        }
+
+        function populateGradesModeSubjects() {
+            const select = document.getElementById('gradesModeSubject');
+            const subjects = getAllSubjectsInUse();
+            select.innerHTML = subjects.map(s => `<option value="${s}">${s}</option>`).join('');
+            const currentSubject = document.getElementById('subjectName').value;
+            if (subjects.includes(currentSubject)) select.value = currentSubject;
+            populateGradesModeCheckboxes();
+        }
+
+        function populateGradesModeCheckboxes() {
+            const subject = document.getElementById('gradesModeSubject').value;
+            const container = document.getElementById('gradesModeCheckboxes');
+            const matching = getAllDatasetsList().filter(d => d.meta.subject === subject);
+
+            if (matching.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-400">لا توجد بيانات محفوظة لهذه المادة بعد.</p>`;
+                document.getElementById('gradesComparisonContainer').innerHTML = '';
+                return;
+            }
+
+            container.innerHTML = matching.map(d => `
+                <label class="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm cursor-pointer hover:bg-slate-50">
+                    <input type="checkbox" class="grades-mode-checkbox" value="${d.key}" onchange="renderGradesModeAnalysis()" checked>
+                    <span>${getDatasetLabel(d.meta)}</span>
+                </label>
+            `).join('');
+
+            renderGradesModeAnalysis();
+        }
+
+        function renderGradesModeAnalysis() {
+            const container = document.getElementById('gradesComparisonContainer');
+            const termKey = 'final_' + document.getElementById('gradesModeTerm').value;
+            const checked = Array.from(document.querySelectorAll('.grades-mode-checkbox:checked')).map(cb => cb.value);
+
+            if (checked.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">اختر صفاً أو شعبة واحدة على الأقل للمقارنة.</p>`;
+                if (chartInstances['gradesComparisonChart']) {
+                    chartInstances['gradesComparisonChart'].destroy();
+                    delete chartInstances['gradesComparisonChart'];
+                }
+                return;
+            }
+
+            const rows = checked.map(key => {
+                const ds = datasets[key];
+                if (!ds) return null;
+                const values = ds.students.map(s => s.scores[termKey] ? s.scores[termKey].norm : null).filter(v => v !== null);
+                const avg = values.length > 0 ? (values.reduce((a, b) => a + b, 0) / values.length) : null;
+                return { label: getDatasetLabel(ds.meta), avg, count: values.length };
+            }).filter(r => r !== null);
+
+            rows.sort((a, b) => (b.avg || 0) - (a.avg || 0));
+            const maxAvg = Math.max(...rows.map(r => r.avg || 0), 1);
+
+            container.innerHTML = rows.map(r => `
+                <div class="bg-white border border-slate-200 rounded-xl p-3">
+                    <div class="flex justify-between items-center text-sm mb-1.5">
+                        <span class="font-bold text-slate-800">${r.label}</span>
+                        <span class="font-bold ${r.avg !== null ? 'text-indigo-700' : 'text-slate-400'}">${r.avg !== null ? r.avg.toFixed(1) + '%' : 'لا توجد بيانات'} <span class="text-xs text-slate-400 font-normal">(${r.count} طالب)</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-2.5">
+                        <div class="bg-indigo-500 h-2.5 rounded-full" style="width: ${r.avg !== null ? (r.avg / maxAvg * 100) : 0}%"></div>
+                    </div>
+                </div>
+            `).join('');
+
+            renderChart('gradesComparisonChart', {
+                type: 'bar',
+                data: {
+                    labels: rows.map(r => r.label),
+                    datasets: [{
+                        label: 'متوسط الدرجة %',
+                        data: rows.map(r => r.avg !== null ? parseFloat(r.avg.toFixed(1)) : 0),
+                        backgroundColor: '#4F3FC7',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, max: 100, ticks: { font: CHART_FONT } },
+                        y: { ticks: { font: CHART_FONT } }
+                    }
+                }
+            });
+        }
+
+        // === النمط 3: مقارنة حلقة لمادة واحدة عبر عدة اختبارات ===
+
+        function populateCycleModeSubjects() {
+            const select = document.getElementById('cycleModeSubject');
+            const subjects = getAllSubjectsInUse();
+            select.innerHTML = subjects.map(s => `<option value="${s}">${s}</option>`).join('');
+            const currentSubject = document.getElementById('subjectName').value;
+            if (subjects.includes(currentSubject)) select.value = currentSubject;
+            const currentCycle = document.getElementById('studyCycle').value;
+            document.getElementById('cycleModeCycle').value = currentCycle;
+        }
+
+        function renderCycleModeAnalysis() {
+            const cycle = document.getElementById('cycleModeCycle').value;
+            const subject = document.getElementById('cycleModeSubject').value;
+            const container = document.getElementById('cycleComparisonContainer');
+
+            // تجميع كل الصفوف والشعب التابعة لهذه الحلقة ولهذه المادة في مجموعة طلاب واحدة
+            const matching = getAllDatasetsList().filter(d => d.meta.cycle === cycle && d.meta.subject === subject);
+            const pooledStudents = matching.reduce((acc, d) => acc.concat(d.students), []);
+
+            if (pooledStudents.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">لا توجد بيانات محفوظة لهذه الحلقة والمادة بعد.</p>`;
+                if (chartInstances['cycleComparisonChart']) {
+                    chartInstances['cycleComparisonChart'].destroy();
+                    delete chartInstances['cycleComparisonChart'];
+                }
+                return;
+            }
+
+            const examDefs = [
+                { key: 'diagnostic', label: 'الاختبار التشخيصي' },
+                { key: 'formative1', label: 'التكويني الأول' },
+                { key: 'formative2', label: 'التكويني الثاني' },
+                { key: 'school', label: 'اختبار المدرسة' },
+                { key: 'central', label: 'الاختبار المركزي' },
+                { key: 'final_term1', label: 'نهاية الفصل الأول' },
+                { key: 'final_term2', label: 'نهاية الفصل الثاني' },
+                { key: 'final_term3', label: 'نهاية الفصل الثالث' }
+            ];
+
+            const rows = examDefs.map(exam => {
+                const values = pooledStudents.map(s => s.scores[exam.key] ? s.scores[exam.key].norm : null).filter(v => v !== null);
+                const avg = values.length > 0 ? (values.reduce((a, b) => a + b, 0) / values.length) : null;
+                return { label: exam.label, avg, count: values.length };
+            }).filter(r => r.count > 0);
+
+            if (rows.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">لا توجد درجات مُدخلة بعد لهذه الحلقة والمادة.</p>`;
+                if (chartInstances['cycleComparisonChart']) {
+                    chartInstances['cycleComparisonChart'].destroy();
+                    delete chartInstances['cycleComparisonChart'];
+                }
+                return;
+            }
+
+            const maxAvg = Math.max(...rows.map(r => r.avg || 0), 1);
+            container.innerHTML = `
+                <p class="text-xs text-slate-500 mb-2">مجموع طلاب الحلقة في هذه المادة (كل الصفوف والشعب): ${pooledStudents.length} طالب</p>
+            ` + rows.map(r => `
+                <div class="bg-white border border-slate-200 rounded-xl p-3">
+                    <div class="flex justify-between items-center text-sm mb-1.5">
+                        <span class="font-bold text-slate-800">${r.label}</span>
+                        <span class="font-bold text-emerald-700">${r.avg.toFixed(1)}% <span class="text-xs text-slate-400 font-normal">(${r.count} طالب)</span></span>
+                    </div>
+                    <div class="w-full bg-slate-100 rounded-full h-2.5">
+                        <div class="bg-emerald-500 h-2.5 rounded-full" style="width: ${r.avg / maxAvg * 100}%"></div>
+                    </div>
+                </div>
+            `).join('');
+
+            renderChart('cycleComparisonChart', {
+                type: 'bar',
+                data: {
+                    labels: rows.map(r => r.label),
+                    datasets: [{
+                        label: 'المتوسط %',
+                        data: rows.map(r => parseFloat(r.avg.toFixed(1))),
+                        backgroundColor: '#10b981',
+                        borderRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, max: 100, ticks: { font: CHART_FONT } },
+                        x: { ticks: { font: CHART_FONT, maxRotation: 30, minRotation: 0 } }
+                    }
+                }
+            });
+        }
+
+        function executeClearAll() {
+            students.length = 0; // نُفرّغ نفس المصفوفة المرجعية بدل استبدالها حتى لا تنفصل عن مجموعة البيانات الحالية
+            saveToStorage();
+            renderTable();
+            closeModal();
+            showToast('تم حذف جميع طلاب هذه المجموعة (الصف/الشعبة/المادة) بنجاح', 'success');
+        }
+
+        function saveToStorage() {
+            if (currentDatasetKey) {
+                datasets[currentDatasetKey].students = students;
+            }
+            localStorage.setItem(STORAGE_KEY_DATASETS, JSON.stringify(datasets));
+        }
+
+        // ترحيل بيانات "نهاية الفصل" القديمة (المحفوظة قبل ربطها بالفصل الدراسي) داخل كل مجموعات البيانات
+        function migrateFinalScores(list) {
+            list.forEach(st => {
+                if (st.scores && st.scores.final && !st.scores.final_term1 && !st.scores.final_term2 && !st.scores.final_term3) {
+                    st.scores.final_term1 = st.scores.final;
+                }
+            });
+        }
+
+        function loadFromStorage() {
+            // تحميل الإعدادات العامة أولاً حتى تُحدَّد مجموعة البيانات النشطة بشكل صحيح
+            const savedSettings = localStorage.getItem(STORAGE_KEY_SETTINGS);
+            if(savedSettings) {
+                try {
+                    const set = JSON.parse(savedSettings);
+                    if(set.year) document.getElementById('academicYear').value = set.year;
+                    if(set.subject) document.getElementById('subjectName').value = set.subject;
+                    if(set.cycle) document.getElementById('studyCycle').value = set.cycle;
+                    if(set.grade) document.getElementById('gradeLevel').value = set.grade;
+                    if(set.section) document.getElementById('sectionName').value = set.section;
+                    if(set.term) document.getElementById('term').value = set.term;
+                    if(set.teacherName) document.getElementById('teacherName').value = set.teacherName;
+                } catch(e) {}
+            }
+
+            const savedDatasets = localStorage.getItem(STORAGE_KEY_DATASETS);
+            if (savedDatasets) {
+                try {
+                    datasets = JSON.parse(savedDatasets);
+                } catch(e) {
+                    datasets = {};
+                }
+            } else {
+                // ترحيل من الإصدار القديم (مجموعة بيانات واحدة فقط بدون شعبة) إن وُجدت
+                const legacy = localStorage.getItem(STORAGE_KEY_STUDENTS_LEGACY);
+                if (legacy) {
+                    try {
+                        const legacyStudents = JSON.parse(legacy);
+                        const ctx = getCurrentContext();
+                        const key = getDatasetKey(ctx.year, ctx.subject, ctx.grade, ctx.section, ctx.cycle);
+                        datasets[key] = { meta: ctx, students: legacyStudents };
+                    } catch(e) {}
+                }
+            }
+
+            Object.values(datasets).forEach(ds => migrateFinalScores(ds.students));
+
+            switchToCurrentDataset();
+        }
+
+        function saveSettings() {
+            const settings = {
+                year: document.getElementById('academicYear').value,
+                subject: document.getElementById('subjectName').value,
+                cycle: document.getElementById('studyCycle').value,
+                grade: document.getElementById('gradeLevel').value,
+                section: document.getElementById('sectionName').value,
+                term: document.getElementById('term').value,
+                teacherName: document.getElementById('teacherName').value
+            };
+            localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(settings));
+        }
+
+        // تحديد حد الرسوب بناءً على الصف المختار (أقل من 50 للأول-الثامن، أقل من 60 للتاسع-الثاني عشر)
+        function getPassingThreshold() {
+            const gradeVal = document.getElementById('gradeLevel').value;
+            const lowerGrades = ['الصف الأول', 'الصف الثاني', 'الصف الثالث', 'الصف الرابع', 'الصف الخامس', 'الصف السادس', 'الصف السابع', 'الصف الثامن'];
+            if (lowerGrades.includes(gradeVal)) {
+                return 50;
+            }
+            return 60;
+        }
+
+        function getGradeInfo(percentage) {
+            const passLimit = getPassingThreshold();
+            if (percentage >= 90) return { label: 'ممتاز', color: 'text-emerald-700', bg: 'bg-emerald-100', category: 'exc' };
+            if (percentage >= 80) return { label: 'جيد جداً', color: 'text-blue-700', bg: 'bg-blue-100', category: 'vgood' };
+            if (percentage >= 70) return { label: 'جيد', color: 'text-amber-700', bg: 'bg-amber-100', category: 'good' };
+            if (percentage >= passLimit) return { label: 'مقبول', color: 'text-orange-700', bg: 'bg-orange-100', category: 'pass' };
+            if (percentage > 0) return { label: 'راسب', color: 'text-rose-700', bg: 'bg-rose-100', category: 'fail' };
+            return { label: '-', color: 'text-slate-500', bg: 'bg-slate-100', category: 'none' };
+        }
+
+        function getStudentAverage(student) {
+            let sum = 0;
+            let count = 0;
+            for (let cat of categoriesList) {
+                const key = (cat === 'final') ? ('final_' + getTermKey()) : cat;
+                if (student.scores[key]) {
+                    sum += student.scores[key].norm;
+                    count++;
+                }
+            }
+            if (count === 0) return 0;
+            return parseFloat((sum / count).toFixed(2));
+        }
+
+        // Add Score to Student (merges if name exists)
+        function addStudentScore(name, score, maxScore, category) {
+            const s = parseFloat(score);
+            const m = parseFloat(maxScore);
+            const cleanName = name ? name.trim() : '';
+
+            if (isNaN(s) || isNaN(m) || m <= 0 || cleanName === '') return false;
+            
+            let student = students.find(st => st.name === cleanName);
+            if (!student) {
+                student = { id: idCounter++, name: cleanName, scores: {} };
+                students.push(student);
+            }
+            
+            const normalized = parseFloat(((s / m) * 100).toFixed(2));
+            // درجة "نهاية الفصل" تُحفظ منفصلة لكل فصل دراسي (الأول/الثاني/الثالث) حتى لا تُستبدل عند تغيير الفصل
+            const storageKey = (category === 'final') ? ('final_' + getTermKey()) : category;
+            student.scores[storageKey] = { raw: s, max: m, norm: normalized };
+            
+            return true;
+        }
+
+        function addSingle() {
+            const nameInput = document.getElementById('singleName');
+            const scoreInput = document.getElementById('singleScore');
+            const maxInput = document.getElementById('singleMax');
+            const categoryInput = document.getElementById('singleCategory');
+
+            const name = nameInput.value;
+            const score = normalizeDigits(scoreInput.value);
+            const max = normalizeDigits(maxInput.value);
+            const category = categoryInput.value;
+
+            if (!name.trim()) { showToast('الرجاء إدخال اسم الطالب', 'error'); nameInput.focus(); return; }
+            if (!score.trim() || isNaN(score)) { showToast('الرجاء إدخال درجة صحيحة', 'error'); scoreInput.focus(); return; }
+            if (!max.trim() || isNaN(max) || parseFloat(max) <= 0) { showToast('الرجاء إدخال درجة كلية صحيحة', 'error'); maxInput.focus(); return; }
+
+            if(addStudentScore(name, score, max, category)) {
+                saveToStorage();
+                showToast(`تم حفظ درجة ${name} بنجاح`, 'success');
+                nameInput.value = '';
+                scoreInput.value = '';
+                nameInput.focus();
+                renderTable();
+            } else {
+                showToast('حدث خطأ أثناء معالجة الدرجات', 'error');
+            }
+        }
+
+        function addBatch() {
+            const namesInput = document.getElementById('batchNames');
+            const scoresInput = document.getElementById('batchScores');
+            const maxInput = document.getElementById('batchMax');
+            const categoryInput = document.getElementById('batchCategory');
+            
+            const rawNames = namesInput.value;
+            const rawScores = normalizeDigits(scoresInput.value);
+            const max = normalizeDigits(maxInput.value);
+            const category = categoryInput.value;
+
+            if (!rawNames.trim() || !rawScores.trim()) {
+                showToast('الرجاء إدخال الأسماء والدرجات في المربعات', 'error');
+                return;
+            }
+            if (!max.trim() || isNaN(max) || parseFloat(max) <= 0) {
+                showToast('الرجاء إدخال درجة كلية صحيحة', 'error');
+                return;
+            }
+
+            // فصل الأسطر بدقة مع تجاهل الفراغات
+            const namesLines = rawNames.split(/\r?\n/).map(n => n.trim()).filter(n => n !== '');
+            const scoresLines = rawScores.split(/\r?\n/).map(s => s.trim()).filter(s => s !== '');
+
+            if (namesLines.length !== scoresLines.length) {
+                showToast(`تنبيه: عدد الأسماء (${namesLines.length}) لا يطابق عدد الدرجات (${scoresLines.length})!`, 'error');
+                return;
+            }
+
+            let addedCount = 0;
+            let errorCount = 0;
+
+            for(let i = 0; i < namesLines.length; i++) {
+                const name = namesLines[i];
+                const cleanScore = scoresLines[i];
+
+                if (name && cleanScore !== '' && !isNaN(cleanScore)) {
+                    if(addStudentScore(name, cleanScore, max, category)) {
+                        addedCount++;
+                    } else {
+                        errorCount++;
+                    }
+                } else {
+                    errorCount++;
+                }
+            }
+
+            if (addedCount > 0) {
+                saveToStorage();
+                let msg = `تمت إضافة درجات ${addedCount} طالب بنجاح.`;
+                if (errorCount > 0) msg += ` تم تجاهل ${errorCount} سطر غير صالح.`;
+                showToast(msg, 'success');
+                namesInput.value = '';
+                scoresInput.value = '';
+                renderTable();
+            } else {
+                showToast('لم يتم العثور على بيانات صحيحة للمعالجة. تأكد من تطابق الأسطر.', 'error');
+            }
+        }
+
+        function updateReportHeader() {
+            const year = document.getElementById('academicYear').value;
+            const subject = document.getElementById('subjectName').value;
+            const cycle = document.getElementById('studyCycle').value;
+            const grade = document.getElementById('gradeLevel').value;
+            const section = document.getElementById('sectionName').value;
+            const term = document.getElementById('term').value;
+            const teacherName = document.getElementById('teacherName').value.trim();
+            
+            const headerEl = document.getElementById('reportHeaderInfo');
+            if(headerEl) {
+                headerEl.innerHTML = `
+                    <span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-md border border-blue-100">${year}</span>
+                    <span class="bg-violet-50 text-violet-700 px-2.5 py-1 rounded-md border border-violet-100 font-bold">${subject}</span>
+                    <span class="bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-md border border-indigo-100">${term}</span>
+                    <span class="bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-md border border-emerald-100">${cycle}</span>
+                    <span class="bg-amber-50 text-amber-700 px-2.5 py-1 rounded-md border border-amber-100">${grade}</span>
+                    <span class="bg-amber-50 text-amber-700 px-2.5 py-1 rounded-md border border-amber-100">الشعبة ${section}</span>
+                    ${teacherName ? `<span class="bg-slate-100 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200 font-bold">المعلم: ${teacherName}</span>` : ''}
+                `;
+            }
+        }
+
+        function deleteStudent(id) {
+            const index = students.findIndex(s => s.id === id);
+            if (index !== -1) {
+                const name = students[index].name;
+                students.splice(index, 1);
+                saveToStorage();
+                renderTable();
+                showToast(`تم حذف سجل الطالب ${name}`, 'success');
+            }
+        }
+
+        // === تعديل درجات طالب موجود ===
+        let editingStudentId = null;
+
+        const EDIT_FIELD_DEFS = [
+            { key: 'diagnostic', label: 'الاختبار التشخيصي' },
+            { key: 'formative1', label: 'التكويني الأول' },
+            { key: 'formative2', label: 'التكويني الثاني' },
+            { key: 'school', label: 'اختبار المدرسة' },
+            { key: 'central', label: 'الاختبار المركزي' },
+            { key: 'final_term1', label: 'نهاية الفصل الأول' },
+            { key: 'final_term2', label: 'نهاية الفصل الثاني' },
+            { key: 'final_term3', label: 'نهاية الفصل الثالث' }
+        ];
+
+        function openEditStudentModal(id) {
+            const student = students.find(s => s.id === id);
+            if (!student) return;
+
+            editingStudentId = id;
+            document.getElementById('editStudentName').value = student.name;
+
+            const container = document.getElementById('editStudentScoresContainer');
+            container.innerHTML = EDIT_FIELD_DEFS.map(f => {
+                const existing = student.scores[f.key];
+                return `
+                    <div class="grid grid-cols-3 gap-2 items-center">
+                        <label class="text-sm font-semibold text-slate-700 col-span-1">${f.label}</label>
+                        <input type="text" inputmode="decimal" data-edit-raw="${f.key}" value="${existing ? existing.raw : ''}" placeholder="الدرجة" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                        <input type="text" inputmode="decimal" data-edit-max="${f.key}" value="${existing ? existing.max : ''}" placeholder="من (الدرجة الكلية)" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+                    </div>
+                `;
+            }).join('');
+
+            document.getElementById('editStudentModal').classList.remove('hidden');
+        }
+
+        function closeEditStudentModal() {
+            document.getElementById('editStudentModal').classList.add('hidden');
+            editingStudentId = null;
+        }
+
+        function saveEditedStudent() {
+            if (editingStudentId === null) return;
+            const student = students.find(s => s.id === editingStudentId);
+            if (!student) return;
+
+            const newName = document.getElementById('editStudentName').value.trim();
+            if (!newName) {
+                showToast('الرجاء إدخال اسم الطالب', 'error');
+                return;
+            }
+
+            // منع تعارض الاسم مع طالب آخر موجود مسبقاً
+            const duplicate = students.find(s => s.id !== editingStudentId && s.name === newName);
+            if (duplicate) {
+                showToast('يوجد طالب آخر بنفس هذا الاسم بالضبط، اختر اسماً مختلفاً لتفادي دمج البيانات', 'error');
+                return;
+            }
+
+            student.name = newName;
+
+            for (const f of EDIT_FIELD_DEFS) {
+                const rawInput = document.querySelector(`[data-edit-raw="${f.key}"]`);
+                const maxInput = document.querySelector(`[data-edit-max="${f.key}"]`);
+                const rawVal = normalizeDigits(rawInput.value.trim());
+                const maxVal = normalizeDigits(maxInput.value.trim());
+
+                if (rawVal === '' && maxVal === '') {
+                    delete student.scores[f.key];
+                    continue;
+                }
+
+                const raw = parseFloat(rawVal);
+                const max = parseFloat(maxVal);
+                if (isNaN(raw) || isNaN(max) || max <= 0) {
+                    showToast(`قيمة غير صحيحة في حقل "${f.label}"`, 'error');
+                    return;
+                }
+
+                student.scores[f.key] = { raw, max, norm: parseFloat(((raw / max) * 100).toFixed(2)) };
+            }
+
+            saveToStorage();
+            renderTable();
+            closeEditStudentModal();
+            showToast(`تم تحديث درجات ${newName} بنجاح`, 'success');
+        }
+
+        function renderScoreCell(scoreObj) {
+            if (!scoreObj) {
+                return `<td class="p-3 text-center border-r border-slate-100"><span class="text-slate-300">-</span></td>`;
+            }
+            return `
+                <td class="p-3 text-center border-r border-slate-100" title="الدرجة الأصلية: ${scoreObj.raw} من ${scoreObj.max}">
+                    <span class="font-medium text-slate-700">${scoreObj.norm}</span>
+                </td>
+            `;
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('resultsTable');
+            const statsContainer = document.getElementById('statsContainer');
+            const distContainer = document.getElementById('gradeDistributionContainer');
+            const studentCount = document.getElementById('studentCount');
+
+            studentCount.innerText = `${students.length} طالب`;
+
+            if (students.length === 0) {
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="11" class="p-12 text-center">
+                            <div class="flex flex-col items-center justify-center text-slate-400">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 mb-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
+                                <p class="text-base font-medium">سجل الدرجات المحفوظ فارغ</p>
+                                <p class="text-sm mt-1">ابدأ بإدخال درجات الطلاب ليتم حفظها تلقائياً</p>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                statsContainer.classList.add('hidden');
+                distContainer.classList.add('hidden');
+                renderProgressComparison();
+                return;
+            }
+
+            statsContainer.classList.remove('hidden');
+            distContainer.classList.remove('hidden');
+
+            let totalAverages = [];
+            let counts = { exc: 0, vgood: 0, good: 0, pass: 0, fail: 0 };
+            const passLimit = getPassingThreshold();
+            document.getElementById('failLabelTitle').innerText = `راسب (أقل من ${passLimit}%)`;
+
+            const rowsHtml = students.map((s, index) => {
+                const avg = getStudentAverage(s);
+                totalAverages.push(avg);
+                const gradeInfo = getGradeInfo(avg);
+                
+                if (gradeInfo.category !== 'none') {
+                    counts[gradeInfo.category]++;
+                }
+                
+                return `
+                <tr class="hover:bg-blue-50/30 transition-colors group">
+                    <td class="p-3 text-center text-slate-400 font-medium">${index + 1}</td>
+                    <td class="p-3 font-bold text-slate-800">${s.name}</td>
+                    ${renderScoreCell(s.scores['diagnostic'])}
+                    ${renderScoreCell(s.scores['formative1'])}
+                    ${renderScoreCell(s.scores['formative2'])}
+                    ${renderScoreCell(s.scores['school'])}
+                    ${renderScoreCell(s.scores['central'])}
+                    ${renderScoreCell(s.scores['final_' + getTermKey()])}
+                    <td class="p-3 text-center border-r-2 border-slate-200 bg-slate-50/50 group-hover:bg-blue-50/50">
+                        <span class="inline-block px-2 py-1 font-bold rounded-lg text-slate-800">
+                            ${avg}%
+                        </span>
+                    </td>
+                    <td class="p-3 text-center">
+                        <span class="px-2.5 py-1 rounded-md text-xs font-bold ${gradeInfo.bg} ${gradeInfo.color}">
+                            ${gradeInfo.label}
+                        </span>
+                    </td>
+                    <td class="p-3 text-center">
+                        <div class="flex items-center justify-center gap-1">
+                            <button onclick="openEditStudentModal(${s.id})" class="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors outline-none" title="تعديل درجات الطالب">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                            </button>
+                            <button onclick="deleteStudent(${s.id})" class="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors outline-none" title="حذف سجل الطالب">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                `;
+            }).join('');
+
+            tbody.innerHTML = rowsHtml;
+
+            if (totalAverages.length > 0) {
+                const classAvg = (totalAverages.reduce((a, b) => a + b, 0) / totalAverages.length).toFixed(1);
+                document.getElementById('statAvg').innerText = classAvg + '%';
+                document.getElementById('statMax').innerText = Math.max(...totalAverages) + '%';
+                
+                const totalStudentsCount = students.length;
+                const failPercentage = ((counts.fail / totalStudentsCount) * 100).toFixed(1);
+                document.getElementById('statFailRate').innerText = `${failPercentage}% (${counts.fail} طالب)`;
+
+                document.getElementById('countExc').innerText = counts.exc;
+                document.getElementById('percExc').innerText = `(${((counts.exc / totalStudentsCount) * 100).toFixed(1)}%)`;
+
+                document.getElementById('countVgood').innerText = counts.vgood;
+                document.getElementById('percVgood').innerText = `(${((counts.vgood / totalStudentsCount) * 100).toFixed(1)}%)`;
+
+                document.getElementById('countGood').innerText = counts.good;
+                document.getElementById('percGood').innerText = `(${((counts.good / totalStudentsCount) * 100).toFixed(1)}%)`;
+
+                document.getElementById('countPass').innerText = counts.pass;
+                document.getElementById('percPass').innerText = `(${((counts.pass / totalStudentsCount) * 100).toFixed(1)}%)`;
+
+                document.getElementById('countFail').innerText = counts.fail;
+                document.getElementById('percFail').innerText = `(${failPercentage}%)`;
+
+                renderChart('gradeDistributionChart', {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['ممتاز', 'جيد جداً', 'جيد', 'مقبول', 'راسب'],
+                        datasets: [{
+                            data: [counts.exc, counts.vgood, counts.good, counts.pass, counts.fail],
+                            backgroundColor: ['#10b981', '#3b82f6', '#f59e0b', '#f97316', '#f43f5e'],
+                            borderWidth: 2,
+                            borderColor: '#ffffff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: { position: 'bottom', rtl: true, labels: { font: CHART_FONT, boxWidth: 12, padding: 10 } }
+                        }
+                    }
+                });
+            }
+
+            renderProgressComparison();
+        }
+
+        // تصنيف تقدم الطالب بمقارنة درجة نهاية الفصل الأول بدرجة نهاية الفصل الثالث
+        function classifyProgress(t1, t3) {
+            if (t1 === null || t1 === undefined || t3 === null || t3 === undefined) return null;
+            const diff = parseFloat((t3 - t1).toFixed(2));
+            if (diff <= -5) return { label: 'تأخر', color: 'text-rose-700', bg: 'bg-rose-100' };
+            if (diff >= 5) return { label: 'تقدم', color: 'text-emerald-700', bg: 'bg-emerald-100' };
+            if (t1 > 95 && diff > 0) return { label: 'تقدم', color: 'text-emerald-700', bg: 'bg-emerald-100' };
+            if (t1 >= 96 && t1 <= 100 && diff === 0) return { label: 'تقدم', color: 'text-emerald-700', bg: 'bg-emerald-100' };
+            return { label: 'ثابت', color: 'text-slate-700', bg: 'bg-slate-100' };
+        }
+
+        function renderProgressComparison() {
+            const container = document.getElementById('progressComparisonContainer');
+            const tbody = document.getElementById('progressComparisonTable');
+
+            const rows = students
+                .map(s => ({
+                    student: s,
+                    t1: s.scores.final_term1 ? s.scores.final_term1.norm : null,
+                    t3: s.scores.final_term3 ? s.scores.final_term3.norm : null
+                }))
+                .filter(r => r.t1 !== null || r.t3 !== null);
+
+            if (rows.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+            container.classList.remove('hidden');
+
+            tbody.innerHTML = rows.map((r, index) => {
+                const result = classifyProgress(r.t1, r.t3);
+                const diffText = (r.t1 !== null && r.t3 !== null) ? (r.t3 - r.t1).toFixed(2) : '-';
+                return `
+                <tr class="hover:bg-indigo-50/30 transition-colors">
+                    <td class="p-3 text-center text-slate-400 font-medium">${index + 1}</td>
+                    <td class="p-3 font-bold text-slate-800">${r.student.name}</td>
+                    <td class="p-3 text-center border-r border-slate-100">${r.t1 !== null ? r.t1 : '<span class="text-slate-300">-</span>'}</td>
+                    <td class="p-3 text-center border-r border-slate-100">${r.t3 !== null ? r.t3 : '<span class="text-slate-300">-</span>'}</td>
+                    <td class="p-3 text-center border-r border-slate-100">${diffText}</td>
+                    <td class="p-3 text-center border-r border-slate-100">
+                        ${result ? `<span class="px-2.5 py-1 rounded-md text-xs font-bold ${result.bg} ${result.color}">${result.label}</span>` : '<span class="text-xs text-slate-400">بيانات غير مكتملة</span>'}
+                    </td>
+                </tr>
+                `;
+            }).join('');
+        }
+
+        window.onload = () => {
+            loadFromStorage();
+            updateReportHeader();
+            renderTable();
+            
+            document.getElementById('singleScore').addEventListener('keypress', function (e) {
+                if (e.key === 'Enter') addSingle();
+            });
+        };
+    </script>
+</body>
+</html>
