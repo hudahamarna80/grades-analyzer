@@ -152,8 +152,26 @@
                         <div id="termAveragesContainer" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-4"></div>
                         <div class="chart-box"><canvas id="termAveragesChart"></canvas></div>
                     </div>
+                    <div class="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
+                        <h4 class="font-bold text-slate-800">زر التقدم: اختر الاختبارين المطلوب مقارنتهما لإظهار التقدم</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">الاختبار الأول (نقطة البداية)</label>
+                                <select id="progressCompareFrom" onchange="renderProgressAndTopCases()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">الاختبار الثاني (نقطة المقارنة)</label>
+                                <select id="progressCompareTo" onchange="renderProgressAndTopCases()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">حد التقدم/التأخر (بالدرجات)</label>
+                                <input type="text" inputmode="decimal" id="progressThreshold" value="5" onchange="renderProgressAndTopCases()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-center">
+                            </div>
+                        </div>
+                        <p class="text-xs text-slate-500">مثال: إذا كان الحد 5، فارتفاع 5 درجات فأكثر = تقدم، وانخفاض 5 درجات فأكثر = تأخر. الطلاب فوق 95% الذين ارتفعوا (ولو بأقل من الحد)، أو بقوا بين 96% و100% دون تغيير، يُحسبون تقدماً دائماً.</p>
+                    </div>
                     <div>
-                        <h4 class="font-bold text-slate-800 mb-3">ملخص تقدم الطلاب (نهاية الفصل الأول ↔ نهاية الفصل الثالث)</h4>
+                        <h4 id="progressSummaryTitle" class="font-bold text-slate-800 mb-3">ملخص تقدم الطلاب</h4>
                         <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 items-center">
                             <div id="progressSummaryContainer" class="grid grid-cols-1 sm:grid-cols-3 lg:grid-cols-1 gap-4"></div>
                             <div class="chart-box-sm"><canvas id="progressSummaryChart"></canvas></div>
@@ -944,6 +962,31 @@
 
         // === النمط 1: مقارنة فصول/اختبارات لصف واحد ===
 
+        const EXAM_KEY_LABELS = {
+            diagnostic: 'الاختبار التشخيصي',
+            formative1: 'التكويني الأول',
+            formative2: 'التكويني الثاني',
+            school: 'اختبار المدرسة',
+            central: 'الاختبار المركزي',
+            final_term1: 'نهاية الفصل الدراسي الأول',
+            final_term2: 'نهاية الفصل الدراسي الثاني',
+            final_term3: 'نهاية الفصل الدراسي الثالث'
+        };
+
+        let progressSelectorsInitialized = false;
+
+        function populateProgressExamSelectors() {
+            if (progressSelectorsInitialized) return;
+            const fromSelect = document.getElementById('progressCompareFrom');
+            const toSelect = document.getElementById('progressCompareTo');
+            const optionsHtml = Object.entries(EXAM_KEY_LABELS).map(([key, label]) => `<option value="${key}">${label}</option>`).join('');
+            fromSelect.innerHTML = optionsHtml;
+            toSelect.innerHTML = optionsHtml;
+            fromSelect.value = 'final_term1';
+            toSelect.value = 'final_term3';
+            progressSelectorsInitialized = true;
+        }
+
         function populateSingleModeDataset() {
             const select = document.getElementById('singleModeDataset');
             const list = getAllDatasetsList();
@@ -954,11 +997,26 @@
         }
 
         function renderSingleModeAnalysis() {
+            populateProgressExamSelectors();
             const key = document.getElementById('singleModeDataset').value;
             const targetStudents = (datasets[key] && datasets[key].students) ? datasets[key].students : [];
             renderTermAverages(targetStudents);
-            renderProgressSummary(targetStudents);
-            renderTopCases(targetStudents);
+            renderProgressAndTopCases();
+        }
+
+        // يقرأ الاختبارين المختارين والحد، ويحدّث ملخص التقدم وأبرز الحالات لمجموعة البيانات الحالية في هذا النمط
+        function renderProgressAndTopCases() {
+            const key = document.getElementById('singleModeDataset').value;
+            const targetStudents = (datasets[key] && datasets[key].students) ? datasets[key].students : [];
+            const fromKey = document.getElementById('progressCompareFrom').value;
+            const toKey = document.getElementById('progressCompareTo').value;
+            const threshold = parseFloat(normalizeDigits(document.getElementById('progressThreshold').value)) || 5;
+
+            document.getElementById('progressSummaryTitle').textContent =
+                `ملخص تقدم الطلاب (${EXAM_KEY_LABELS[fromKey]} ↔ ${EXAM_KEY_LABELS[toKey]})`;
+
+            renderProgressSummary(targetStudents, fromKey, toKey, threshold);
+            renderTopCases(targetStudents, fromKey, toKey, threshold);
         }
 
         // متوسط الصف في درجة "نهاية الفصل" لكل فصل دراسي على حدة
@@ -1015,13 +1073,17 @@
         }
 
         // ملخص أعداد الطلاب حسب تصنيف التقدم (تقدم / ثابت / تأخر)
-        function renderProgressSummary(targetStudents) {
+        function renderProgressSummary(targetStudents, fromKey, toKey, threshold) {
+            fromKey = fromKey || 'final_term1';
+            toKey = toKey || 'final_term3';
+            threshold = threshold || 5;
+
             const container = document.getElementById('progressSummaryContainer');
-            const comparableStudents = targetStudents.filter(s => s.scores.final_term1 && s.scores.final_term3);
+            const comparableStudents = targetStudents.filter(s => s.scores[fromKey] && s.scores[toKey]);
 
             const counts = { 'تقدم': 0, 'ثابت': 0, 'تأخر': 0 };
             comparableStudents.forEach(s => {
-                const result = classifyProgress(s.scores.final_term1.norm, s.scores.final_term3.norm);
+                const result = classifyProgress(s.scores[fromKey].norm, s.scores[toKey].norm, threshold);
                 if (result) counts[result.label]++;
             });
 
@@ -1033,7 +1095,7 @@
             ];
 
             if (total === 0) {
-                container.innerHTML = `<div class="col-span-3 text-center text-sm text-slate-400 py-4">لا توجد بيانات كافية للمقارنة (تحتاج درجة "نهاية الفصل" في الفصلين الأول والثالث).</div>`;
+                container.innerHTML = `<div class="col-span-3 text-center text-sm text-slate-400 py-4">لا توجد بيانات كافية للمقارنة (تحتاج درجة في كلا الاختبارين المختارين).</div>`;
                 if (chartInstances['progressSummaryChart']) {
                     chartInstances['progressSummaryChart'].destroy();
                     delete chartInstances['progressSummaryChart'];
@@ -1072,17 +1134,21 @@
 
 
         // أبرز 3 حالات تقدم وأبرز 3 حالات تأخر (حسب نفس تصنيف التقدم المعتمد في الجدول)
-        function renderTopCases(targetStudents) {
+        function renderTopCases(targetStudents, fromKey, toKey, threshold) {
+            fromKey = fromKey || 'final_term1';
+            toKey = toKey || 'final_term3';
+            threshold = threshold || 5;
+
             const container = document.getElementById('topCasesContainer');
             const comparableStudents = targetStudents
-                .filter(s => s.scores.final_term1 && s.scores.final_term3)
+                .filter(s => s.scores[fromKey] && s.scores[toKey])
                 .map(s => {
-                    const t1 = s.scores.final_term1.norm;
-                    const t3 = s.scores.final_term3.norm;
+                    const a = s.scores[fromKey].norm;
+                    const b = s.scores[toKey].norm;
                     return {
                         name: s.name,
-                        diff: parseFloat((t3 - t1).toFixed(2)),
-                        classification: classifyProgress(t1, t3)
+                        diff: parseFloat((b - a).toFixed(2)),
+                        classification: classifyProgress(a, b, threshold)
                     };
                 });
 
@@ -1798,11 +1864,12 @@
         }
 
         // تصنيف تقدم الطالب بمقارنة درجة نهاية الفصل الأول بدرجة نهاية الفصل الثالث
-        function classifyProgress(t1, t3) {
+        function classifyProgress(t1, t3, threshold) {
+            threshold = (threshold === undefined || threshold === null || isNaN(threshold)) ? 5 : threshold;
             if (t1 === null || t1 === undefined || t3 === null || t3 === undefined) return null;
             const diff = parseFloat((t3 - t1).toFixed(2));
-            if (diff <= -5) return { label: 'تأخر', color: 'text-rose-700', bg: 'bg-rose-100' };
-            if (diff >= 5) return { label: 'تقدم', color: 'text-emerald-700', bg: 'bg-emerald-100' };
+            if (diff <= -threshold) return { label: 'تأخر', color: 'text-rose-700', bg: 'bg-rose-100' };
+            if (diff >= threshold) return { label: 'تقدم', color: 'text-emerald-700', bg: 'bg-emerald-100' };
             if (t1 > 95 && diff > 0) return { label: 'تقدم', color: 'text-emerald-700', bg: 'bg-emerald-100' };
             if (t1 >= 96 && t1 <= 100 && diff === 0) return { label: 'تقدم', color: 'text-emerald-700', bg: 'bg-emerald-100' };
             return { label: 'ثابت', color: 'text-slate-700', bg: 'bg-slate-100' };
