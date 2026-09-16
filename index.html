@@ -53,8 +53,9 @@
         
         td { transition: background-color 0.2s; }
         td:hover { background-color: #f8fafc; }
-        .analysis-tab-btn { color: #64748b; border-color: transparent; }
-        .analysis-tab-btn.active { color: #4B3FC4; border-color: #4B3FC4; }
+        .analysis-tab-btn { color: #475569; background-color: #ffffff; border: 1px solid #e2e8f0; }
+        .analysis-tab-btn:hover { background-color: #eef2ff; }
+        .analysis-tab-btn.active { color: #ffffff; background-color: #4B3FC4; border-color: #4B3FC4; box-shadow: 0 2px 6px rgba(75,63,196,0.35); }
         .chart-box { position: relative; height: 260px; }
         .chart-box-sm { position: relative; height: 200px; }
         .print-only { display: none; }
@@ -133,10 +134,19 @@
             </div>
 
             <!-- تبويبات أنماط التحليل -->
-            <div class="flex border-b border-slate-200 bg-slate-50 overflow-x-auto">
-                <button onclick="switchAnalysisTab('single')" id="tabBtn-single" class="analysis-tab-btn px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors">مقارنة فصول/اختبارات لصف واحد</button>
-                <button onclick="switchAnalysisTab('grades')" id="tabBtn-grades" class="analysis-tab-btn px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors">مقارنة بين الصفوف/الشعب</button>
-                <button onclick="switchAnalysisTab('cycle')" id="tabBtn-cycle" class="analysis-tab-btn px-5 py-3 text-sm font-bold whitespace-nowrap border-b-2 transition-colors">مقارنة حلقة لمادة واحدة</button>
+            <div class="grid grid-cols-1 gap-2 p-3 bg-slate-100 border-b border-slate-200 flex-shrink-0 relative z-10">
+                <button onclick="switchAnalysisTab('single')" id="tabBtn-single" class="analysis-tab-btn flex flex-col items-center justify-center gap-1.5 px-3 py-3 rounded-xl text-sm font-bold transition-colors text-center leading-tight">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" /></svg>
+                    <span>مقارنة فصول/اختبارات لصف واحد</span>
+                </button>
+                <button onclick="switchAnalysisTab('grades')" id="tabBtn-grades" class="analysis-tab-btn flex flex-col items-center justify-center gap-1.5 px-3 py-3 rounded-xl text-sm font-bold transition-colors text-center leading-tight">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+                    <span>مقارنة بين الصفوف/الشعب</span>
+                </button>
+                <button onclick="switchAnalysisTab('cycle')" id="tabBtn-cycle" class="analysis-tab-btn flex flex-col items-center justify-center gap-1.5 px-3 py-3 rounded-xl text-sm font-bold transition-colors text-center leading-tight">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+                    <span>مقارنة حلقة لمادة واحدة</span>
+                </button>
             </div>
 
             <div class="p-6 overflow-y-auto space-y-6 flex-1">
