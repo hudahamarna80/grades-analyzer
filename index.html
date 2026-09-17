@@ -218,6 +218,29 @@
                         <div class="chart-box mb-4"><canvas id="gradesComparisonChart"></canvas></div>
                         <div id="gradesComparisonContainer" class="space-y-3"></div>
                     </div>
+
+                    <div class="bg-indigo-50/50 border border-indigo-100 rounded-xl p-4 space-y-3">
+                        <h4 class="font-bold text-slate-800">نسب التقدم والتأخر لكل صف/شعبة: اختر الاختبارين المطلوب مقارنتهما</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">الاختبار الأول (نقطة البداية)</label>
+                                <select id="gradesProgressFrom" onchange="renderGradesProgressAnalysis()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">الاختبار الثاني (نقطة المقارنة)</label>
+                                <select id="gradesProgressTo" onchange="renderGradesProgressAnalysis()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm"></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">حد التقدم/التأخر (بالدرجات)</label>
+                                <input type="text" inputmode="decimal" id="gradesProgressThreshold" value="5" onchange="renderGradesProgressAnalysis()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500 text-sm text-center">
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <h4 class="font-bold text-slate-800 mb-3">نسبة الطلاب (تقدم / ثابت / تأخر) لكل صف/شعبة مختارة</h4>
+                        <div class="chart-box mb-4"><canvas id="gradesProgressChart"></canvas></div>
+                        <div id="gradesProgressComparisonContainer" class="space-y-3"></div>
+                    </div>
                 </div>
 
                 <!-- === النمط 3: مقارنة حلقة لمادة واحدة عبر عدة اختبارات === -->
@@ -1220,20 +1243,33 @@
             const container = document.getElementById('gradesModeCheckboxes');
             const matching = getAllDatasetsList().filter(d => d.meta.subject === subject);
 
+            const gFromSelect = document.getElementById('gradesProgressFrom');
+            const gToSelect = document.getElementById('gradesProgressTo');
+            if (!gFromSelect.dataset.populated) {
+                const optionsHtml = Object.entries(EXAM_KEY_LABELS).map(([key, label]) => `<option value="${key}">${label}</option>`).join('');
+                gFromSelect.innerHTML = optionsHtml;
+                gToSelect.innerHTML = optionsHtml;
+                gFromSelect.value = 'final_term1';
+                gToSelect.value = 'final_term3';
+                gFromSelect.dataset.populated = 'true';
+            }
+
             if (matching.length === 0) {
                 container.innerHTML = `<p class="text-sm text-slate-400">لا توجد بيانات محفوظة لهذه المادة بعد.</p>`;
                 document.getElementById('gradesComparisonContainer').innerHTML = '';
+                document.getElementById('gradesProgressComparisonContainer').innerHTML = '';
                 return;
             }
 
             container.innerHTML = matching.map(d => `
                 <label class="flex items-center gap-1.5 bg-white border border-slate-200 rounded-lg px-3 py-1.5 text-sm cursor-pointer hover:bg-slate-50">
-                    <input type="checkbox" class="grades-mode-checkbox" value="${d.key}" onchange="renderGradesModeAnalysis()" checked>
+                    <input type="checkbox" class="grades-mode-checkbox" value="${d.key}" onchange="renderGradesModeAnalysis(); renderGradesProgressAnalysis();" checked>
                     <span>${getDatasetLabel(d.meta)}</span>
                 </label>
             `).join('');
 
             renderGradesModeAnalysis();
+            renderGradesProgressAnalysis();
         }
 
         function renderGradesModeAnalysis() {
@@ -1292,6 +1328,97 @@
                     scales: {
                         x: { beginAtZero: true, max: 100, ticks: { font: CHART_FONT } },
                         y: { ticks: { font: CHART_FONT } }
+                    }
+                }
+            });
+        }
+
+        // نسبة الطلاب (تقدم / ثابت / تأخر) لكل صف/شعبة مختارة، حسب اختبارين وحدّ يُختاران
+        function renderGradesProgressAnalysis() {
+            const container = document.getElementById('gradesProgressComparisonContainer');
+            const fromKey = document.getElementById('gradesProgressFrom').value;
+            const toKey = document.getElementById('gradesProgressTo').value;
+            const threshold = parseFloat(normalizeDigits(document.getElementById('gradesProgressThreshold').value)) || 5;
+            const checked = Array.from(document.querySelectorAll('.grades-mode-checkbox:checked')).map(cb => cb.value);
+
+            if (checked.length === 0) {
+                container.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">اختر صفاً أو شعبة واحدة على الأقل للمقارنة.</p>`;
+                if (chartInstances['gradesProgressChart']) {
+                    chartInstances['gradesProgressChart'].destroy();
+                    delete chartInstances['gradesProgressChart'];
+                }
+                return;
+            }
+
+            const rows = checked.map(key => {
+                const ds = datasets[key];
+                if (!ds) return null;
+                const comparable = ds.students.filter(s => s.scores[fromKey] && s.scores[toKey]);
+                const counts = { 'تقدم': 0, 'ثابت': 0, 'تأخر': 0 };
+                comparable.forEach(s => {
+                    const result = classifyProgress(s.scores[fromKey].norm, s.scores[toKey].norm, threshold);
+                    if (result) counts[result.label]++;
+                });
+                const total = comparable.length;
+                return {
+                    label: getDatasetLabel(ds.meta),
+                    total,
+                    progressPct: total > 0 ? (counts['تقدم'] / total * 100) : 0,
+                    stablePct: total > 0 ? (counts['ثابت'] / total * 100) : 0,
+                    regressPct: total > 0 ? (counts['تأخر'] / total * 100) : 0,
+                    counts
+                };
+            }).filter(r => r !== null);
+
+            if (rows.every(r => r.total === 0)) {
+                container.innerHTML = `<p class="text-sm text-slate-400 text-center py-4">لا توجد بيانات كافية (تحتاج درجة في كلا الاختبارين المختارين لكل صف/شعبة).</p>`;
+                if (chartInstances['gradesProgressChart']) {
+                    chartInstances['gradesProgressChart'].destroy();
+                    delete chartInstances['gradesProgressChart'];
+                }
+                return;
+            }
+
+            container.innerHTML = rows.map(r => `
+                <div class="bg-white border border-slate-200 rounded-xl p-3">
+                    <div class="flex justify-between items-center text-sm mb-2">
+                        <span class="font-bold text-slate-800">${r.label}</span>
+                        <span class="text-xs text-slate-400">${r.total} طالب قابل للمقارنة</span>
+                    </div>
+                    ${r.total > 0 ? `
+                        <div class="w-full h-3 rounded-full overflow-hidden flex bg-slate-100">
+                            <div class="bg-emerald-500 h-full" style="width: ${r.progressPct}%" title="تقدم ${r.progressPct.toFixed(1)}%"></div>
+                            <div class="bg-slate-400 h-full" style="width: ${r.stablePct}%" title="ثابت ${r.stablePct.toFixed(1)}%"></div>
+                            <div class="bg-rose-500 h-full" style="width: ${r.regressPct}%" title="تأخر ${r.regressPct.toFixed(1)}%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs mt-1.5">
+                            <span class="text-emerald-700 font-bold">تقدم ${r.progressPct.toFixed(1)}% (${r.counts['تقدم']})</span>
+                            <span class="text-slate-500 font-bold">ثابت ${r.stablePct.toFixed(1)}% (${r.counts['ثابت']})</span>
+                            <span class="text-rose-700 font-bold">تأخر ${r.regressPct.toFixed(1)}% (${r.counts['تأخر']})</span>
+                        </div>
+                    ` : `<p class="text-xs text-slate-400">لا توجد بيانات كافية لهذا الصف/الشعبة.</p>`}
+                </div>
+            `).join('');
+
+            renderChart('gradesProgressChart', {
+                type: 'bar',
+                data: {
+                    labels: rows.map(r => r.label),
+                    datasets: [
+                        { label: 'تقدم %', data: rows.map(r => parseFloat(r.progressPct.toFixed(1))), backgroundColor: '#10b981' },
+                        { label: 'ثابت %', data: rows.map(r => parseFloat(r.stablePct.toFixed(1))), backgroundColor: '#94a3b8' },
+                        { label: 'تأخر %', data: rows.map(r => parseFloat(r.regressPct.toFixed(1))), backgroundColor: '#f43f5e' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { position: 'bottom', rtl: true, labels: { font: CHART_FONT, boxWidth: 12, padding: 10 } }
+                    },
+                    scales: {
+                        x: { stacked: true, ticks: { font: CHART_FONT } },
+                        y: { stacked: true, beginAtZero: true, max: 100, ticks: { font: CHART_FONT } }
                     }
                 }
             });
