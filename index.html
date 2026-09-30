@@ -10,7 +10,7 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, query, where } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         // نفس مشروع Firebase الخاص بنظام الحضور والغياب (نفس حسابات الدخول للأقسام)
         const firebaseConfig = {
@@ -26,7 +26,7 @@
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        window.fb = { db, auth, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, signInWithEmailAndPassword, signOut, onAuthStateChanged };
+        window.fb = { db, auth, collection, doc, setDoc, getDocs, deleteDoc, onSnapshot, query, where, signInWithEmailAndPassword, signOut, onAuthStateChanged };
         window.dispatchEvent(new Event('fbReady'));
     </script>
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800;900&display=swap" rel="stylesheet">
@@ -470,6 +470,205 @@
         </div>
     </div>
 
+    <!-- نافذة الفئات الخاصة: ذوو الهمم / الموهوبون / المتفوقون -->
+    <div id="specialModal" class="print-target fixed inset-0 bg-slate-900/50 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="p-5 bg-violet-600 text-white flex justify-between items-center no-print">
+                <h3 class="text-lg font-bold">الفئات الخاصة: ذوو الهمم والموهوبون والمتفوقون</h3>
+                <button onclick="closeSpecialModal()" class="text-white hover:text-violet-100 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 p-3 bg-slate-100 border-b border-slate-200 flex-shrink-0 no-print">
+                <button onclick="switchSpecialTab('sen')" id="scTabBtn-sen" class="analysis-tab-btn px-3 py-3 rounded-xl text-sm font-bold transition-colors text-center">ذوو الهمم</button>
+                <button onclick="switchSpecialTab('gifted')" id="scTabBtn-gifted" class="analysis-tab-btn px-3 py-3 rounded-xl text-sm font-bold transition-colors text-center">الموهوبون</button>
+                <button onclick="switchSpecialTab('high')" id="scTabBtn-high" class="analysis-tab-btn px-3 py-3 rounded-xl text-sm font-bold transition-colors text-center">المتفوقون</button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-5">
+
+                <div class="no-print space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">نطاق العرض</label>
+                            <select id="scScope" onchange="renderSpecial()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-violet-500 outline-none"></select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">حد التقدم/التأخر (درجات)</label>
+                            <input type="text" inputmode="decimal" id="scThreshold" value="5" onchange="renderSpecial()" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-violet-500 text-center">
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="scToggleForm()" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-bold py-2.5 rounded-xl text-sm transition-colors">+ إضافة / تحديث طالب</button>
+                        </div>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-x-6 gap-y-2">
+                        <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                            <input type="checkbox" id="scCompare" onchange="renderSpecial()" class="rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+                            مقارنة بمتوسط كل طلبة النطاق في الرسم البياني
+                        </label>
+                        <div id="scAutoWrap" class="hidden flex items-center gap-2 text-sm text-slate-700">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" id="scAutoHigh" onchange="renderSpecial()" class="rounded border-slate-300 text-violet-600 focus:ring-violet-500">
+                                إضافة تلقائية لمن معدله
+                            </label>
+                            <input type="text" inputmode="decimal" id="scAutoThreshold" value="90" onchange="renderSpecial()" class="w-16 px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-violet-500 text-sm text-center">
+                            <span>% فأكثر</span>
+                        </div>
+                    </div>
+
+                    <!-- نموذج الإضافة / التحديث -->
+                    <div id="scForm" class="hidden bg-violet-50/60 border border-violet-100 rounded-xl p-4 space-y-4">
+                        <div class="flex justify-between items-center">
+                            <h4 class="font-bold text-slate-800" id="scFormTitle">إضافة طالب</h4>
+                            <button onclick="scToggleForm(false)" class="text-slate-400 hover:text-slate-700 text-sm">إخفاء</button>
+                        </div>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">مجموعة البيانات (الصف - الشعبة - المادة - الحلقة)</label>
+                                <select id="scFormDataset" onchange="scFormDatasetChanged()" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-violet-500 text-sm"></select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-semibold text-slate-600 mb-1">اسم الطالب (إن كان موجوداً في المجموعة يُحدَّث سجله)</label>
+                                <input type="text" id="scFormName" list="scNamesList" autocomplete="off" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-violet-500 text-sm font-bold">
+                                <datalist id="scNamesList"></datalist>
+                            </div>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-slate-700">
+                            <span class="font-semibold">الفئة:</span>
+                            <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="scFormTag-sen" class="rounded border-slate-300 text-violet-600"> ذوو الهمم</label>
+                            <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="scFormTag-gifted" class="rounded border-slate-300 text-violet-600"> موهوب</label>
+                            <label class="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" id="scFormTag-high" class="rounded border-slate-300 text-violet-600"> متفوق</label>
+                        </div>
+                        <div class="flex items-center gap-3">
+                            <label class="text-xs font-semibold text-slate-600">الدرجة الكلية الافتراضية لكل الاختبارات:</label>
+                            <input type="text" inputmode="decimal" id="scFormSharedMax" value="100" class="w-20 px-2 py-1.5 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-violet-500 text-sm text-center">
+                            <span class="text-xs text-slate-400">(اكتب في خانة «من» بجانب أي اختبار قيمة مختلفة إن لزم)</span>
+                        </div>
+                        <div id="scFormRows" class="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-2"></div>
+                        <p class="text-xs text-slate-500">اترك الاختبارات غير المُدخلة فارغة. عند تعديل سجل موجود، مسح خانتي الدرجة و«من» معاً يحذف تلك الدرجة.</p>
+                        <div class="flex gap-2 justify-end">
+                            <button onclick="scResetForm()" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 text-sm font-medium">تفريغ النموذج</button>
+                            <button onclick="scSaveStudent()" class="px-5 py-2 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-bold text-sm">حفظ</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ترويسة تظهر فقط عند الطباعة -->
+                <div class="print-only border-b-2 border-slate-800 pb-4 mb-2">
+                    <div class="flex items-center gap-3 mb-3">
+                        <img id="scPrintLogo" src="" alt="" style="width:64px;height:auto;">
+                        <div>
+                            <p class="text-lg font-extrabold">مدرسة السلف الصالح الخاصة</p>
+                            <h2 class="text-xl font-bold" id="scPrintTitle"></h2>
+                        </div>
+                    </div>
+                    <div id="scPrintSummary" class="text-sm leading-6"></div>
+                </div>
+
+                <div id="scSummaryCards" class="grid grid-cols-2 md:grid-cols-5 gap-3"></div>
+
+                <div id="scGroupWrap">
+                    <h4 class="font-bold text-slate-800 mb-3" id="scGroupChartTitle">متوسط الفئة عبر الاختبارات</h4>
+                    <div class="chart-box"><canvas id="scGroupChart"></canvas></div>
+                </div>
+
+                <div id="scStudentPanel" class="hidden no-print bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-bold text-slate-800" id="scStudentPanelTitle"></h4>
+                        <button onclick="scCloseStudentPanel()" class="text-slate-400 hover:text-slate-700 text-sm">إغلاق</button>
+                    </div>
+                    <div class="chart-box"><canvas id="scStudentChart"></canvas></div>
+                </div>
+
+                <div class="overflow-x-auto custom-scrollbar border border-slate-200 rounded-xl">
+                    <table class="w-full text-right border-collapse whitespace-nowrap text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600 border-b border-slate-200" id="scTableHead"></tr>
+                        </thead>
+                        <tbody id="scTableBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+                <p id="scFootnote" class="text-xs text-slate-500 leading-6"></p>
+            </div>
+
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 no-print flex-wrap">
+                <button onclick="exportSpecialToExcel()" id="scExcelBtn" class="px-5 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm transition-colors disabled:opacity-40" disabled>تصدير Excel</button>
+                <button onclick="printSpecialReport()" id="scPrintBtn" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors disabled:opacity-40" disabled>طباعة / حفظ PDF</button>
+                <button onclick="closeSpecialModal()" class="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm transition-colors">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- نافذة الطلبة المعرضين لخطر الرسوب في اختبار نهاية الفصل الأول -->
+    <div id="riskModal" class="print-target fixed inset-0 bg-slate-900/50 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="p-5 bg-rose-600 text-white flex justify-between items-center no-print">
+                <h3 class="text-lg font-bold">الطلبة المعرضون لخطر الرسوب في اختبار نهاية الفصل الدراسي الأول</h3>
+                <button onclick="closeRiskModal()" class="text-white hover:text-rose-100 focus:outline-none">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+            </div>
+
+            <div class="p-6 overflow-y-auto space-y-5">
+
+                <div class="no-print space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">نطاق التحليل</label>
+                            <select id="riskScope" onchange="generateRiskReport()" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-rose-500 outline-none"></select>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-semibold text-slate-700 mb-1.5">هامش الأمان فوق حد النجاح (درجات)</label>
+                            <input type="text" inputmode="decimal" id="riskMargin" value="10" onchange="generateRiskReport()" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-rose-500 text-center">
+                        </div>
+                    </div>
+                    <label class="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                        <input type="checkbox" id="riskHideTaken" checked onchange="generateRiskReport()" class="rounded border-slate-300 text-rose-600 focus:ring-rose-500">
+                        إخفاء الطلبة الذين أُدخلت لهم درجة "نهاية الفصل الأول" بالفعل
+                    </label>
+                    <div class="bg-rose-50 border border-rose-100 rounded-xl p-3 text-xs leading-6 text-slate-600">
+                        <span class="font-bold text-rose-700">طريقة الحساب:</span>
+                        يُحسب معدل كل طالب من الاختبارات التي سبقت نهاية الفصل (التشخيصي، التكويني 1 و2، المدرسي، المركزي) على مقياس 100.
+                        <span class="font-bold">خطر مرتفع</span> = المعدل أقل من حد النجاح (50 للصفوف 1-8، 60 للصفوف 9-12).
+                        <span class="font-bold">خطر متوسط</span> = المعدل أعلى من حد النجاح لكن أقل من (حد النجاح + الهامش).
+                        كما تُعرض علامة <span class="font-bold">تراجع</span> لمن انخفضت درجته 10 درجات فأكثر بين آخر اختبارين.
+                    </div>
+                </div>
+
+                <!-- ترويسة تظهر فقط عند الطباعة -->
+                <div class="print-only border-b-2 border-slate-800 pb-4 mb-2">
+                    <div class="flex items-center gap-3 mb-3">
+                        <img id="riskPrintLogo" src="" alt="" style="width:64px;height:auto;">
+                        <div>
+                            <p class="text-lg font-extrabold">مدرسة السلف الصالح الخاصة</p>
+                            <h2 class="text-xl font-bold">الطلبة المعرضون لخطر الرسوب في اختبار نهاية الفصل الدراسي الأول</h2>
+                        </div>
+                    </div>
+                    <div id="riskPrintSummary" class="text-sm leading-6"></div>
+                </div>
+
+                <div id="riskSummaryCards" class="grid grid-cols-2 md:grid-cols-4 gap-3"></div>
+                <div id="riskNotes" class="text-xs text-slate-500 space-y-1"></div>
+
+                <div class="overflow-x-auto custom-scrollbar border border-slate-200 rounded-xl">
+                    <table class="w-full text-right border-collapse whitespace-nowrap text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 text-slate-600 border-b border-slate-200" id="riskTableHead"></tr>
+                        </thead>
+                        <tbody id="riskTableBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 no-print flex-wrap">
+                <button onclick="exportRiskToExcel()" id="riskExcelBtn" class="px-5 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm transition-colors disabled:opacity-40" disabled>تصدير Excel</button>
+                <button onclick="printRiskReport()" id="riskPrintBtn" class="px-5 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-sm transition-colors disabled:opacity-40" disabled>طباعة / حفظ PDF</button>
+                <button onclick="closeRiskModal()" class="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm transition-colors">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
     <!-- منطقة طباعة كشف درجات الطلاب (تظهر فقط عند تصدير PDF) -->
     <div id="studentRosterPrintArea" class="print-target hidden bg-white p-6">
         <div class="flex items-center gap-3 mb-4 border-b-2 border-slate-800 pb-4">
@@ -776,6 +975,15 @@
                     <button onclick="openPercentageReportModal()" class="text-sm bg-amber-500 hover:bg-amber-600 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         توليد تقرير نسب PDF
+                    </button>
+                    <button onclick="assignDatasetOwner()" id="assignOwnerBtn" class="hidden text-sm bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 px-4 rounded-lg transition-colors" title="للمسؤول فقط: تعيين معلم مالكاً للمجموعة المعروضة">نقل الشعبة إلى معلم</button>
+                    <button onclick="openSpecialModal()" class="text-sm bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2" title="ذوو الهمم والموهوبون والمتفوقون: إضافة الأسماء والدرجات وتحليل التقدم">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
+                        ذوو الهمم والموهوبون والمتفوقون
+                    </button>
+                    <button onclick="openRiskModal()" class="text-sm bg-rose-600 hover:bg-rose-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2" title="الطلبة المتوقع تعثرهم في اختبار نهاية الفصل الدراسي الأول">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                        الطلبة المعرضون لخطر الرسوب
                     </button>
                     <button onclick="openAnalysisModal()" class="text-sm bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
@@ -2403,7 +2611,7 @@
                 return `
                 <tr class="hover:bg-blue-50/30 transition-colors group">
                     <td class="p-3 text-center text-slate-400 font-medium">${index + 1}</td>
-                    <td class="p-3 font-bold text-slate-800">${s.name}</td>
+                    <td class="p-3 font-bold text-slate-800">${s.name}${scBadges(s)}</td>
                     ${renderScoreCell(s.scores['diagnostic'])}
                     ${renderScoreCell(s.scores['formative1'])}
                     ${renderScoreCell(s.scores['formative2'])}
@@ -2532,6 +2740,612 @@
             }).join('');
         }
 
+        function assignDatasetOwner() {
+            if (!isAdminUser || !currentDatasetKey || !datasets[currentDatasetKey]) return;
+            const email = (prompt('بريد المعلم الذي ستصبح هذه الشعبة (الصف/الشعبة/المادة المعروضة الآن) خاصة به:', '') || '').trim().toLowerCase();
+            if (!email) return;
+            datasets[currentDatasetKey].ownerEmail = email;
+            localStorage.setItem(STORAGE_KEY_DATASETS, JSON.stringify(datasets));
+            pushDatasetToCloud(currentDatasetKey);
+            showToast('تم نقل الشعبة إلى ' + email, 'success');
+        }
+
+        // === الفئات الخاصة: ذوو الهمم / الموهوبون / المتفوقون ===
+        // تُحفظ الفئة داخل سجل الطالب نفسه (student.tags) فتُحفظ محلياً وتُزامَن سحابياً مع باقي البيانات
+
+        const SC_CATS = {
+            sen:    { label: 'ذوو الهمم',  badge: 'همم',    cls: 'bg-sky-100 text-sky-700',         color: '#0284c7' },
+            gifted: { label: 'الموهوبون',  badge: 'موهوب',  cls: 'bg-violet-100 text-violet-700',   color: '#7c3aed' },
+            high:   { label: 'المتفوقون',  badge: 'متفوق',  cls: 'bg-emerald-100 text-emerald-700', color: '#059669' }
+        };
+        const SC_TIMELINE = [
+            { k: 'diagnostic',  s: 'تشخيصي',   l: 'الاختبار التشخيصي' },
+            { k: 'formative1',  s: 'تكويني 1', l: 'التكويني الأول' },
+            { k: 'formative2',  s: 'تكويني 2', l: 'التكويني الثاني' },
+            { k: 'school',      s: 'مدرسي',    l: 'اختبار المدرسة' },
+            { k: 'central',     s: 'مركزي',    l: 'الاختبار المركزي' },
+            { k: 'final_term1', s: 'نهاية ف1', l: 'نهاية الفصل الأول' },
+            { k: 'final_term2', s: 'نهاية ف2', l: 'نهاية الفصل الثاني' },
+            { k: 'final_term3', s: 'نهاية ف3', l: 'نهاية الفصل الثالث' }
+        ];
+        let scTab = 'sen';
+        let scRows = [];
+        let scEditMode = false;
+        let scGroupSummary = null;
+
+        function scHasTag(s, t) { return Array.isArray(s.tags) && s.tags.includes(t); }
+
+        // شارات صغيرة بجانب اسم الطالب في الجدول الرئيسي
+        function scBadges(s) {
+            if (!s || !Array.isArray(s.tags) || s.tags.length === 0) return '';
+            return s.tags.filter(t => SC_CATS[t]).map(t =>
+                ` <span class="inline-block mr-1 px-1.5 py-0.5 rounded text-[10px] font-bold ${SC_CATS[t].cls}">${SC_CATS[t].badge}</span>`).join('');
+        }
+
+        function scPersist(key) {
+            localStorage.setItem(STORAGE_KEY_DATASETS, JSON.stringify(datasets));
+            pushDatasetToCloud(key);
+            if (key === currentDatasetKey && datasets[key]) {
+                students = datasets[key].students;
+                renderTable();
+            }
+        }
+
+        function scGetTargets() {
+            const scope = document.getElementById('scScope').value;
+            const year = document.getElementById('academicYear').value;
+            if (scope === '__year__') return getAllDatasetsList().filter(d => d.meta.year === year);
+            return datasets[scope] ? [{ key: scope, meta: datasets[scope].meta, students: datasets[scope].students }] : [];
+        }
+
+        function openSpecialModal() {
+            const ctx = getCurrentContext();
+            const list = getAllDatasetsList();
+
+            const scope = document.getElementById('scScope');
+            scope.innerHTML = `<option value="__year__">كل المجموعات في العام الأكاديمي ${riskEsc(ctx.year)}</option>` +
+                list.map(d => `<option value="${riskEsc(d.key)}">${riskEsc(getDatasetLabel(d.meta))} - ${riskEsc(d.meta.year)} (${d.students.length} طالب)</option>`).join('');
+            scope.value = '__year__';
+
+            document.getElementById('scFormDataset').innerHTML = list.map(d =>
+                `<option value="${riskEsc(d.key)}">${riskEsc(getDatasetLabel(d.meta))} - ${riskEsc(d.meta.year)}</option>`).join('');
+            if (currentDatasetKey && datasets[currentDatasetKey]) document.getElementById('scFormDataset').value = currentDatasetKey;
+
+            document.getElementById('scFormRows').innerHTML = SC_TIMELINE.map(t => `
+                <div class="grid grid-cols-6 gap-2 items-center">
+                    <label class="col-span-2 text-xs font-semibold text-slate-700">${t.l}</label>
+                    <input type="text" inputmode="decimal" data-sc-raw="${t.k}" placeholder="الدرجة" class="col-span-2 px-2 py-1.5 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-violet-500 text-sm text-center">
+                    <input type="text" inputmode="decimal" data-sc-max="${t.k}" placeholder="من" class="col-span-2 px-2 py-1.5 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-violet-500 text-sm text-center">
+                </div>`).join('');
+
+            const logo = document.querySelector('#loginScreen img');
+            if (logo) document.getElementById('scPrintLogo').src = logo.src;
+
+            scFormDatasetChanged();
+            document.getElementById('scForm').classList.add('hidden');
+            document.getElementById('scStudentPanel').classList.add('hidden');
+            document.getElementById('specialModal').classList.remove('hidden');
+            switchSpecialTab(scTab);
+        }
+
+        function closeSpecialModal() {
+            document.getElementById('specialModal').classList.add('hidden');
+        }
+
+        function switchSpecialTab(tab) {
+            scTab = tab;
+            Object.keys(SC_CATS).forEach(t => document.getElementById('scTabBtn-' + t).classList.toggle('active', t === tab));
+            document.getElementById('scAutoWrap').classList.toggle('hidden', tab !== 'high');
+            document.getElementById('scStudentPanel').classList.add('hidden');
+            scResetForm();
+            renderSpecial();
+        }
+
+        function scToggleForm(force) {
+            const f = document.getElementById('scForm');
+            const show = (typeof force === 'boolean') ? force : f.classList.contains('hidden');
+            f.classList.toggle('hidden', !show);
+            if (show) {
+                if (!scEditMode) document.getElementById('scFormTag-' + scTab).checked = true;
+                document.getElementById('scFormName').focus();
+            }
+        }
+
+        function scFormDatasetChanged() {
+            const key = document.getElementById('scFormDataset').value;
+            const ds = datasets[key];
+            document.getElementById('scNamesList').innerHTML = ds ? ds.students.map(s => `<option value="${riskEsc(s.name)}"></option>`).join('') : '';
+        }
+
+        function scResetForm() {
+            scEditMode = false;
+            document.getElementById('scFormTitle').textContent = 'إضافة طالب';
+            document.getElementById('scFormName').value = '';
+            document.querySelectorAll('[data-sc-raw],[data-sc-max]').forEach(i => { i.value = ''; });
+            Object.keys(SC_CATS).forEach(t => { document.getElementById('scFormTag-' + t).checked = (t === scTab); });
+        }
+
+        // تعبئة النموذج ببيانات طالب موجود لتعديل درجاته أو فئته
+        function scEditRow(idx) {
+            const r = scRows[idx];
+            if (!r) return;
+            scResetForm();
+            scEditMode = true;
+            document.getElementById('scFormDataset').value = r.key;
+            scFormDatasetChanged();
+            document.getElementById('scFormName').value = r.student.name;
+            document.getElementById('scFormTitle').textContent = 'تعديل بيانات: ' + r.student.name;
+            Object.keys(SC_CATS).forEach(t => { document.getElementById('scFormTag-' + t).checked = scHasTag(r.student, t); });
+            SC_TIMELINE.forEach(t => {
+                const sc = r.student.scores[t.k];
+                document.querySelector(`[data-sc-raw="${t.k}"]`).value = sc ? sc.raw : '';
+                document.querySelector(`[data-sc-max="${t.k}"]`).value = sc ? sc.max : '';
+            });
+            scToggleForm(true);
+            document.getElementById('scForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function scSaveStudent() {
+            const key = document.getElementById('scFormDataset').value;
+            const ds = datasets[key];
+            if (!ds) { showToast('اختر مجموعة بيانات صحيحة', 'error'); return; }
+
+            const name = document.getElementById('scFormName').value.trim();
+            if (!name) { showToast('الرجاء إدخال اسم الطالب', 'error'); return; }
+
+            const tags = Object.keys(SC_CATS).filter(t => document.getElementById('scFormTag-' + t).checked);
+            const sharedMax = parseFloat(normalizeDigits(document.getElementById('scFormSharedMax').value.trim()));
+
+            // قراءة الدرجات والتحقق منها قبل أي تعديل
+            const updates = [];
+            for (const t of SC_TIMELINE) {
+                const rawStr = normalizeDigits(document.querySelector(`[data-sc-raw="${t.k}"]`).value.trim());
+                const maxStr = normalizeDigits(document.querySelector(`[data-sc-max="${t.k}"]`).value.trim());
+                if (rawStr === '' && maxStr === '') {
+                    if (scEditMode) updates.push({ k: t.k, remove: true });
+                    continue;
+                }
+                const raw = parseFloat(rawStr);
+                const max = maxStr !== '' ? parseFloat(maxStr) : sharedMax;
+                if (isNaN(raw) || isNaN(max) || max <= 0) {
+                    showToast(`قيمة غير صحيحة في حقل "${t.l}"`, 'error');
+                    return;
+                }
+                updates.push({ k: t.k, raw, max, norm: parseFloat(((raw / max) * 100).toFixed(2)) });
+            }
+
+            let student = ds.students.find(s => s.name === name);
+            const isNew = !student;
+            if (isNew) {
+                const nextId = Math.max(0, ...ds.students.map(s => s.id || 0)) + 1;
+                student = { id: nextId, name, scores: {} };
+                ds.students.push(student);
+            }
+            if (!student.scores) student.scores = {};
+
+            updates.forEach(u => {
+                if (u.remove) delete student.scores[u.k];
+                else student.scores[u.k] = { raw: u.raw, max: u.max, norm: u.norm };
+            });
+
+            const oldTags = Array.isArray(student.tags) ? student.tags : [];
+            student.tags = scEditMode ? tags : Array.from(new Set(oldTags.concat(tags)));
+            if (student.tags.length === 0) delete student.tags;
+
+            scPersist(key);
+            showToast(isNew ? `تمت إضافة ${name}` : `تم تحديث بيانات ${name}`, 'success');
+            scResetForm();
+            scFormDatasetChanged();
+            renderSpecial();
+        }
+
+        function scRemoveTag(idx) {
+            const r = scRows[idx];
+            if (!r) return;
+            if (!confirm(`إزالة ${r.student.name} من فئة "${SC_CATS[scTab].label}"؟ (لن يُحذف سجل الطالب ودرجاته)`)) return;
+            r.student.tags = (r.student.tags || []).filter(t => t !== scTab);
+            if (r.student.tags.length === 0) delete r.student.tags;
+            scPersist(r.key);
+            renderSpecial();
+        }
+
+        function scCollectRows() {
+            const targets = scGetTargets();
+            let thr = parseFloat(normalizeDigits(document.getElementById('scThreshold').value));
+            if (isNaN(thr) || thr < 0) thr = 5;
+            const autoOn = scTab === 'high' && document.getElementById('scAutoHigh').checked;
+            let autoThr = parseFloat(normalizeDigits(document.getElementById('scAutoThreshold').value));
+            if (isNaN(autoThr)) autoThr = 90;
+
+            const rows = [];
+            const allSum = SC_TIMELINE.map(() => ({ s: 0, n: 0 }));
+            targets.forEach(ds => ds.students.forEach(s => {
+                const tl = SC_TIMELINE.map(t => (s.scores && s.scores[t.k]) ? s.scores[t.k].norm : null);
+                tl.forEach((v, i) => { if (v !== null) { allSum[i].s += v; allSum[i].n++; } });
+                const vals = tl.filter(v => v !== null);
+                const avg = vals.length ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)) : null;
+                const tagged = scHasTag(s, scTab);
+                const auto = autoOn && !tagged && avg !== null && avg >= autoThr;
+                if (!tagged && !auto) return;
+                const first = vals.length ? vals[0] : null;
+                const last = vals.length ? vals[vals.length - 1] : null;
+                const diff = vals.length >= 2 ? parseFloat((last - first).toFixed(2)) : null;
+                rows.push({
+                    key: ds.key, meta: ds.meta, label: getDatasetLabel(ds.meta), student: s,
+                    tl, avg, first, last, diff, auto, count: vals.length,
+                    status: diff === null ? null : classifyProgress(first, last, thr)
+                });
+            }));
+            rows.sort((a, b) => a.student.name.localeCompare(b.student.name, 'ar'));
+            return { rows, thr, autoThr, autoOn, classAvg: allSum.map(x => x.n ? parseFloat((x.s / x.n).toFixed(2)) : null), multi: scope_isMulti(targets) };
+        }
+
+        function scope_isMulti(targets) {
+            return document.getElementById('scScope').value === '__year__' || targets.length > 1;
+        }
+
+        function renderSpecial() {
+            const cat = SC_CATS[scTab];
+            const res = scCollectRows();
+            const rows = res.rows;
+            scRows = rows;
+            scGroupSummary = res;
+
+            const withProg = rows.filter(r => r.status);
+            const up = withProg.filter(r => r.status.label === 'تقدم').length;
+            const same = withProg.filter(r => r.status.label === 'ثابت').length;
+            const down = withProg.filter(r => r.status.label === 'تأخر').length;
+            const noData = rows.length - withProg.length;
+            const avgs = rows.filter(r => r.avg !== null).map(r => r.avg);
+            const groupAvg = avgs.length ? (avgs.reduce((a, b) => a + b, 0) / avgs.length).toFixed(1) : '-';
+
+            const card = (label, val, cls) => `<div class="${cls} border rounded-xl p-4 text-center"><span class="text-xs font-bold block mb-1">${label}</span><span class="text-xl font-extrabold">${val}</span></div>`;
+            document.getElementById('scSummaryCards').innerHTML =
+                card('عدد الطلبة', rows.length, 'bg-slate-50 border-slate-200 text-slate-700') +
+                card('متوسط المعدل', groupAvg === '-' ? '-' : groupAvg + '%', 'bg-indigo-50 border-indigo-100 text-indigo-700') +
+                card('تقدم', up, 'bg-emerald-50 border-emerald-100 text-emerald-700') +
+                card('ثابت', same, 'bg-slate-50 border-slate-200 text-slate-700') +
+                card('تأخر', down, 'bg-rose-50 border-rose-100 text-rose-700');
+
+            document.getElementById('scGroupChartTitle').textContent = `متوسط ${cat.label} عبر الاختبارات`;
+
+            // جدول الطلبة
+            const multi = res.multi;
+            const th = (t, extra = '') => `<th class="p-3 font-semibold text-center ${extra}">${t}</th>`;
+            document.getElementById('scTableHead').innerHTML =
+                th('#', 'w-10') + `<th class="p-3 font-bold text-slate-900">اسم الطالب</th>` +
+                (multi ? `<th class="p-3 font-semibold">الصف / الشعبة / المادة</th>` : '') +
+                SC_TIMELINE.map(t => th(t.s, 'border-r border-slate-200')).join('') +
+                th('المعدل', 'border-r-2 border-slate-300 bg-slate-100') +
+                th('التغير (أول ↔ آخر)') + th('التقدم') + th('إجراءات', 'no-print');
+
+            const body = document.getElementById('scTableBody');
+            const colCount = 2 + (multi ? 1 : 0) + SC_TIMELINE.length + 4;
+            if (rows.length === 0) {
+                body.innerHTML = `<tr><td colspan="${colCount}" class="p-10 text-center text-slate-400">لا يوجد طلبة مضافون لفئة "${cat.label}" في هذا النطاق. استخدم زر «+ إضافة / تحديث طالب».</td></tr>`;
+            } else {
+                body.innerHTML = rows.map((r, i) => {
+                    const cells = r.tl.map(v => v === null
+                        ? `<td class="p-3 text-center border-r border-slate-100"><span class="text-slate-300">-</span></td>`
+                        : `<td class="p-3 text-center border-r border-slate-100 text-slate-700">${v}</td>`).join('');
+                    const diffTxt = r.diff === null ? '<span class="text-slate-300">-</span>'
+                        : `<span class="font-bold ${r.diff > 0 ? 'text-emerald-700' : r.diff < 0 ? 'text-rose-700' : 'text-slate-600'}">${r.diff > 0 ? '+' : ''}${r.diff}</span>`;
+                    const status = r.status
+                        ? `<span class="px-2.5 py-1 rounded-md text-xs font-bold ${r.status.bg} ${r.status.color}">${r.status.label}</span>`
+                        : `<span class="text-xs text-slate-400">بيانات غير كافية</span>`;
+                    const autoTag = r.auto ? ` <span class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700">تلقائي</span>` : '';
+                    return `<tr>
+                        <td class="p-3 text-center text-slate-400">${i + 1}</td>
+                        <td class="p-3 font-bold text-slate-800">${riskEsc(r.student.name)}${autoTag}</td>
+                        ${multi ? `<td class="p-3 text-slate-600 text-xs">${riskEsc(r.label)}</td>` : ''}
+                        ${cells}
+                        <td class="p-3 text-center border-r-2 border-slate-200 bg-slate-50 font-bold">${r.avg !== null ? r.avg + '%' : '-'}</td>
+                        <td class="p-3 text-center">${diffTxt}</td>
+                        <td class="p-3 text-center">${status}</td>
+                        <td class="p-3 text-center no-print">
+                            <div class="flex items-center justify-center gap-1">
+                                <button onclick="scShowStudent(${i})" class="px-2 py-1 text-xs font-bold rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100">منحنى</button>
+                                <button onclick="scEditRow(${i})" class="px-2 py-1 text-xs font-bold rounded-md text-slate-700 bg-slate-100 hover:bg-slate-200">تعديل</button>
+                                ${r.auto ? '' : `<button onclick="scRemoveTag(${i})" class="px-2 py-1 text-xs font-bold rounded-md text-rose-700 bg-rose-50 hover:bg-rose-100">إزالة من الفئة</button>`}
+                            </div>
+                        </td>
+                    </tr>`;
+                }).join('');
+            }
+
+            let foot = `يُقارَن التقدم بين أول درجة وآخر درجة مُدخلة لكل طالب بحسب ترتيب الاختبارات (من التشخيصي إلى نهاية الفصل الثالث)، وحد التقدم/التأخر ${res.thr} درجات. تُقاس الدرجات على مقياس 100.`;
+            if (noData > 0) foot += ` ${noData} طالب لديهم درجة واحدة فقط أو لا شيء فلم يُحسب تقدمهم.`;
+            if (scTab === 'high' && res.autoOn) foot += ` الطلبة الموسومون «تلقائي» أُضيفوا لأن معدلهم ${res.autoThr}% فأكثر ولم يُصنَّفوا يدوياً.`;
+            document.getElementById('scFootnote').textContent = foot;
+
+            // الرسم البياني للفئة
+            const wrap = document.getElementById('scGroupWrap');
+            if (rows.length === 0) {
+                if (chartInstances['scGroupChart']) { chartInstances['scGroupChart'].destroy(); delete chartInstances['scGroupChart']; }
+                wrap.classList.add('hidden');
+            } else {
+                wrap.classList.remove('hidden');
+                const grp = SC_TIMELINE.map((t, i) => {
+                    const v = rows.map(r => r.tl[i]).filter(x => x !== null);
+                    return v.length ? parseFloat((v.reduce((a, b) => a + b, 0) / v.length).toFixed(2)) : null;
+                });
+                const sets = [{ label: 'متوسط ' + cat.label, data: grp, borderColor: cat.color, backgroundColor: cat.color, tension: 0.25, spanGaps: true, borderWidth: 3, pointRadius: 4 }];
+                if (document.getElementById('scCompare').checked) {
+                    sets.push({ label: 'متوسط كل طلبة النطاق', data: res.classAvg, borderColor: '#94a3b8', backgroundColor: '#94a3b8', borderDash: [6, 4], tension: 0.25, spanGaps: true, borderWidth: 2, pointRadius: 3 });
+                }
+                renderChart('scGroupChart', {
+                    type: 'line',
+                    data: { labels: SC_TIMELINE.map(t => t.s), datasets: sets },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { y: { min: 0, max: 100, ticks: { font: CHART_FONT } }, x: { ticks: { font: CHART_FONT } } },
+                        plugins: { legend: { rtl: true, labels: { font: CHART_FONT } } }
+                    }
+                });
+            }
+
+            // ترويسة الطباعة
+            const now = new Date();
+            document.getElementById('scPrintTitle').textContent = `تحليل تقدم ${cat.label}`;
+            const scopeSel = document.getElementById('scScope');
+            document.getElementById('scPrintSummary').innerHTML = `
+                <span class="font-bold">النطاق:</span> ${riskEsc(scopeSel.options[scopeSel.selectedIndex] ? scopeSel.options[scopeSel.selectedIndex].text : '')} &nbsp;|&nbsp;
+                <span class="font-bold">عدد الطلبة:</span> ${rows.length} &nbsp;|&nbsp;
+                <span class="font-bold">تقدم / ثابت / تأخر:</span> ${up} / ${same} / ${down} &nbsp;|&nbsp;
+                <span class="font-bold">تاريخ الإصدار:</span> ${now.toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric' })}`;
+
+            document.getElementById('scPrintBtn').disabled = rows.length === 0;
+            document.getElementById('scExcelBtn').disabled = rows.length === 0;
+
+            // إخفاء لوحة المنحنى الفردي إن لم يعد الطالب ضمن القائمة
+            document.getElementById('scStudentPanel').classList.add('hidden');
+        }
+
+        function scShowStudent(idx) {
+            const r = scRows[idx];
+            if (!r) return;
+            const cat = SC_CATS[scTab];
+            document.getElementById('scStudentPanelTitle').textContent = `منحنى تقدم: ${r.student.name}` + (r.diff !== null ? ` (${r.diff > 0 ? '+' : ''}${r.diff} درجة)` : '');
+            document.getElementById('scStudentPanel').classList.remove('hidden');
+            renderChart('scStudentChart', {
+                type: 'line',
+                data: {
+                    labels: SC_TIMELINE.map(t => t.s),
+                    datasets: [{ label: r.student.name, data: r.tl, borderColor: cat.color, backgroundColor: cat.color, tension: 0.25, spanGaps: true, borderWidth: 3, pointRadius: 5 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    scales: { y: { min: 0, max: 100, ticks: { font: CHART_FONT } }, x: { ticks: { font: CHART_FONT } } },
+                    plugins: { legend: { display: false } }
+                }
+            });
+            document.getElementById('scStudentPanel').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+
+        function scCloseStudentPanel() {
+            document.getElementById('scStudentPanel').classList.add('hidden');
+        }
+
+        function printSpecialReport() {
+            document.body.classList.add('printing-report');
+            window.print();
+        }
+
+        function exportSpecialToExcel() {
+            if (!scRows.length) return;
+            const cat = SC_CATS[scTab];
+            const header = ['#', 'اسم الطالب', 'الصف / الشعبة / المادة', ...SC_TIMELINE.map(t => t.l), 'المعدل %', 'التغير (أول ↔ آخر)', 'التقدم'];
+            const aoa = [header].concat(scRows.map((r, i) => [
+                i + 1, r.student.name, r.label,
+                ...r.tl.map(v => v === null ? '' : v),
+                r.avg === null ? '' : r.avg,
+                r.diff === null ? '' : r.diff,
+                r.status ? r.status.label : 'بيانات غير كافية'
+            ]));
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!views'] = [{ RTL: true }];
+            ws['!cols'] = header.map((h, i) => ({ wch: i === 1 ? 28 : i === 2 ? 34 : 14 }));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, cat.label);
+            XLSX.writeFile(wb, `تحليل_تقدم_${cat.label}.xlsx`);
+        }
+
+        // === الطلبة المعرضون لخطر الرسوب في اختبار نهاية الفصل الدراسي الأول ===
+
+        const RISK_PRE_KEYS = ['diagnostic', 'formative1', 'formative2', 'school', 'central'];
+        const RISK_KEY_SHORT = { diagnostic: 'تشخيصي', formative1: 'تكويني 1', formative2: 'تكويني 2', school: 'مدرسي', central: 'مركزي' };
+        const RISK_DECLINE_DROP = 10;
+        let riskLastRows = [];
+        let riskLastMeta = null;
+
+        function riskEsc(str) {
+            return String(str).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+        }
+
+        // حد النجاح حسب الصف (نفس قاعدة getPassingThreshold لكن لأي صف وليس الصف المختار حالياً)
+        function riskPassLimitForGrade(grade) {
+            const lower = ['الصف الأول', 'الصف الثاني', 'الصف الثالث', 'الصف الرابع', 'الصف الخامس', 'الصف السادس', 'الصف السابع', 'الصف الثامن'];
+            return lower.includes(grade) ? 50 : 60;
+        }
+
+        function openRiskModal() {
+            const ctx = getCurrentContext();
+            const select = document.getElementById('riskScope');
+            const list = getAllDatasetsList();
+            let opts = `<option value="__year__">كل المجموعات في العام الأكاديمي ${ctx.year}</option>`;
+            opts += list.map(d => `<option value="${riskEsc(d.key)}">${riskEsc(getDatasetLabel(d.meta))} - ${riskEsc(d.meta.year)} (${d.students.length} طالب)</option>`).join('');
+            select.innerHTML = opts;
+            select.value = (currentDatasetKey && datasets[currentDatasetKey]) ? currentDatasetKey : '__year__';
+
+            const logo = document.querySelector('#loginScreen img');
+            if (logo) document.getElementById('riskPrintLogo').src = logo.src;
+
+            document.getElementById('riskModal').classList.remove('hidden');
+            generateRiskReport();
+        }
+
+        function closeRiskModal() {
+            document.getElementById('riskModal').classList.add('hidden');
+        }
+
+        function generateRiskReport() {
+            const scope = document.getElementById('riskScope').value;
+            const margin = Math.max(0, parseFloat(normalizeDigits(document.getElementById('riskMargin').value)) || 0);
+            const hideTaken = document.getElementById('riskHideTaken').checked;
+            const currentYear = document.getElementById('academicYear').value;
+
+            let targets;
+            if (scope === '__year__') {
+                targets = getAllDatasetsList().filter(d => d.meta.year === currentYear);
+            } else {
+                targets = datasets[scope] ? [{ key: scope, meta: datasets[scope].meta, students: datasets[scope].students }] : [];
+            }
+            const multi = targets.length > 1 || scope === '__year__';
+
+            const rows = [];
+            let totalStudents = 0, noData = 0, alreadyTaken = 0, evaluated = 0;
+
+            targets.forEach(ds => {
+                const passLimit = riskPassLimitForGrade(ds.meta.grade);
+                ds.students.forEach(s => {
+                    totalStudents++;
+                    const vals = RISK_PRE_KEYS.filter(k => s.scores && s.scores[k]).map(k => ({ k, n: s.scores[k].norm }));
+                    if (vals.length === 0) { noData++; return; }
+
+                    const finalObj = s.scores.final_term1 || null;
+                    if (hideTaken && finalObj) { alreadyTaken++; return; }
+                    evaluated++;
+
+                    const avg = parseFloat((vals.reduce((a, v) => a + v.n, 0) / vals.length).toFixed(2));
+                    let level = null;
+                    if (avg < passLimit) level = 'high';
+                    else if (avg < passLimit + margin) level = 'medium';
+                    if (!level) return;
+
+                    let drop = null;
+                    if (vals.length >= 2) drop = parseFloat((vals[vals.length - 1].n - vals[vals.length - 2].n).toFixed(2));
+
+                    rows.push({
+                        name: s.name,
+                        label: getDatasetLabel(ds.meta),
+                        passLimit, avg, level,
+                        scores: RISK_PRE_KEYS.map(k => (s.scores && s.scores[k]) ? s.scores[k].norm : null),
+                        failedCount: vals.filter(v => v.n < passLimit).length,
+                        examsCount: vals.length,
+                        declining: drop !== null && drop <= -RISK_DECLINE_DROP,
+                        drop,
+                        finalNorm: finalObj ? finalObj.norm : null
+                    });
+                });
+            });
+
+            rows.sort((a, b) => a.avg - b.avg);
+            riskLastRows = rows;
+            riskLastMeta = { multi, margin, hideTaken, scopeLabel: scope === '__year__' ? `كل المجموعات - العام ${currentYear}` : (targets[0] ? getDatasetLabel(targets[0].meta) + ' - ' + targets[0].meta.year : '') };
+
+            const high = rows.filter(r => r.level === 'high').length;
+            const medium = rows.filter(r => r.level === 'medium').length;
+            const pct = evaluated > 0 ? ((rows.length / evaluated) * 100).toFixed(1) : '0.0';
+
+            document.getElementById('riskSummaryCards').innerHTML = `
+                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 text-center">
+                    <span class="text-xs font-bold text-slate-500 block mb-1">الطلبة الذين شملهم التحليل</span>
+                    <span class="text-xl font-extrabold text-slate-800">${evaluated}</span>
+                </div>
+                <div class="bg-rose-50 border border-rose-200 rounded-xl p-4 text-center">
+                    <span class="text-xs font-bold text-rose-600 block mb-1">خطر مرتفع</span>
+                    <span class="text-xl font-extrabold text-rose-800">${high}</span>
+                </div>
+                <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                    <span class="text-xs font-bold text-amber-600 block mb-1">خطر متوسط</span>
+                    <span class="text-xl font-extrabold text-amber-800">${medium}</span>
+                </div>
+                <div class="bg-indigo-50 border border-indigo-100 rounded-xl p-4 text-center">
+                    <span class="text-xs font-bold text-indigo-600 block mb-1">نسبة المعرضين للخطر</span>
+                    <span class="text-xl font-extrabold text-indigo-800">${pct}%</span>
+                </div>`;
+
+            const notes = [];
+            if (noData > 0) notes.push(`• ${noData} طالب لا توجد لهم درجات في الاختبارات السابقة، فلم يُحتسبوا.`);
+            if (alreadyTaken > 0) notes.push(`• ${alreadyTaken} طالب أُدخلت لهم درجة نهاية الفصل الأول فتم استبعادهم.`);
+            document.getElementById('riskNotes').innerHTML = notes.join('<br>');
+
+            const head = document.getElementById('riskTableHead');
+            const th = (t, extra = '') => `<th class="p-3 font-semibold text-center ${extra}">${t}</th>`;
+            head.innerHTML = th('#', 'w-10') +
+                `<th class="p-3 font-bold text-slate-900">اسم الطالب</th>` +
+                (multi ? `<th class="p-3 font-semibold">الصف / الشعبة / المادة</th>` : '') +
+                RISK_PRE_KEYS.map(k => th(RISK_KEY_SHORT[k], 'border-r border-slate-200')).join('') +
+                th('المعدل', 'border-r-2 border-slate-300 bg-slate-100') +
+                th('اختبارات دون حد النجاح') +
+                (!hideTaken ? th('نهاية الفصل 1') : '') +
+                th('مستوى الخطر');
+
+            const body = document.getElementById('riskTableBody');
+            const colCount = 2 + (multi ? 1 : 0) + RISK_PRE_KEYS.length + 3 + (!hideTaken ? 1 : 0);
+            if (rows.length === 0) {
+                body.innerHTML = `<tr><td colspan="${colCount}" class="p-10 text-center text-slate-400">
+                    ${evaluated === 0 ? 'لا توجد درجات كافية للتحليل في النطاق المختار.' : 'لا يوجد طلبة ضمن نطاق الخطر بحسب المعايير الحالية.'}</td></tr>`;
+            } else {
+                body.innerHTML = rows.map((r, i) => {
+                    const cells = r.scores.map(n => n === null
+                        ? `<td class="p-3 text-center border-r border-slate-100"><span class="text-slate-300">-</span></td>`
+                        : `<td class="p-3 text-center border-r border-slate-100 ${n < r.passLimit ? 'text-rose-600 font-bold' : 'text-slate-700'}">${n}</td>`).join('');
+                    const badge = r.level === 'high'
+                        ? `<span class="px-2.5 py-1 rounded-md text-xs font-bold bg-rose-100 text-rose-700">خطر مرتفع</span>`
+                        : `<span class="px-2.5 py-1 rounded-md text-xs font-bold bg-amber-100 text-amber-700">خطر متوسط</span>`;
+                    const decl = r.declining ? ` <span class="px-2 py-1 rounded-md text-xs font-bold bg-slate-100 text-slate-700" title="انخفاض ${Math.abs(r.drop)} درجة بين آخر اختبارين">تراجع ${Math.abs(r.drop)}↓</span>` : '';
+                    return `<tr>
+                        <td class="p-3 text-center text-slate-400">${i + 1}</td>
+                        <td class="p-3 font-bold text-slate-800">${riskEsc(r.name)}</td>
+                        ${multi ? `<td class="p-3 text-slate-600 text-xs">${riskEsc(r.label)}</td>` : ''}
+                        ${cells}
+                        <td class="p-3 text-center border-r-2 border-slate-200 bg-slate-50 font-bold ${r.level === 'high' ? 'text-rose-700' : 'text-amber-700'}">${r.avg}%</td>
+                        <td class="p-3 text-center">${r.failedCount} من ${r.examsCount}</td>
+                        ${!hideTaken ? `<td class="p-3 text-center">${r.finalNorm !== null ? r.finalNorm : '<span class="text-slate-300">-</span>'}</td>` : ''}
+                        <td class="p-3 text-center">${badge}${decl}</td>
+                    </tr>`;
+                }).join('');
+            }
+
+            const now = new Date();
+            const generatedLabel = now.toLocaleDateString('ar-AE', { day: 'numeric', month: 'long', year: 'numeric' });
+            document.getElementById('riskPrintSummary').innerHTML = `
+                <span class="font-bold">النطاق:</span> ${riskEsc(riskLastMeta.scopeLabel)} &nbsp;|&nbsp;
+                <span class="font-bold">هامش الأمان:</span> ${margin} درجة &nbsp;|&nbsp;
+                <span class="font-bold">خطر مرتفع:</span> ${high} &nbsp;|&nbsp;
+                <span class="font-bold">خطر متوسط:</span> ${medium} &nbsp;|&nbsp;
+                <span class="font-bold">تاريخ الإصدار:</span> ${generatedLabel}`;
+
+            document.getElementById('riskPrintBtn').disabled = rows.length === 0;
+            document.getElementById('riskExcelBtn').disabled = rows.length === 0;
+        }
+
+        function printRiskReport() {
+            document.body.classList.add('printing-report');
+            window.print();
+        }
+
+        function exportRiskToExcel() {
+            if (!riskLastRows.length) return;
+            const hideTaken = riskLastMeta.hideTaken;
+            const header = ['#', 'اسم الطالب', 'الصف / الشعبة / المادة', ...RISK_PRE_KEYS.map(k => RISK_KEY_SHORT[k]), 'المعدل %', 'حد النجاح', 'اختبارات دون حد النجاح', ...(!hideTaken ? ['نهاية الفصل 1'] : []), 'مستوى الخطر', 'تراجع'];
+            const aoa = [header].concat(riskLastRows.map((r, i) => [
+                i + 1, r.name, r.label,
+                ...r.scores.map(n => n === null ? '' : n),
+                r.avg, r.passLimit, `${r.failedCount} من ${r.examsCount}`,
+                ...(!hideTaken ? [r.finalNorm === null ? '' : r.finalNorm] : []),
+                r.level === 'high' ? 'خطر مرتفع' : 'خطر متوسط',
+                r.declining ? `انخفاض ${Math.abs(r.drop)}` : ''
+            ]));
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!views'] = [{ RTL: true }];
+            ws['!cols'] = header.map((h, i) => ({ wch: i === 1 ? 28 : i === 2 ? 34 : 14 }));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'المعرضون للخطر');
+            XLSX.writeFile(wb, 'الطلبة_المعرضون_لخطر_الرسوب.xlsx');
+        }
+
         window.onload = () => {
             loadFromStorage();
             updateReportHeader();
@@ -2549,11 +3363,28 @@
         let cloudReady = false;
         let unsubscribeDatasetsListener = null;
         const CLOUD_COLLECTION_PATH = ['artifacts', 'grades-analyzer-system', 'public', 'data', 'grade_datasets'];
+        // بريد/بريدات مسؤولي المدرسة (يرون كل الشعب). يجب أن تطابق القائمة الموجودة في قواعد Firestore
+        const ADMIN_EMAILS = ['hudahamarna80@gmail.com'];
+        let currentUserEmail = '';
+        let isAdminUser = false;
 
         function initCloudAuth() {
             function setupAuthListener() {
                 window.fb.onAuthStateChanged(window.fb.auth, (user) => {
                     if (user) {
+                        currentUserEmail = (user.email || '').toLowerCase();
+                        isAdminUser = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(currentUserEmail);
+                        const ab = document.getElementById('assignOwnerBtn');
+                        if (ab) ab.classList.toggle('hidden', !isAdminUser);
+                        // منع ظهور/رفع بيانات مستخدم آخر محفوظة في هذا المتصفح
+                        if (localStorage.getItem('grade_analyzer_last_user') !== currentUserEmail) {
+                            localStorage.removeItem(STORAGE_KEY_DATASETS);
+                            localStorage.setItem('grade_analyzer_last_user', currentUserEmail);
+                            datasets = {};
+                            students = [];
+                            currentDatasetKey = null;
+                            switchToCurrentDataset();
+                        }
                         document.getElementById('loginScreen').classList.add('hidden');
                         document.getElementById('loggedInUserLabel').textContent = user.email || '';
                         document.getElementById('loginErrorMsg').classList.add('hidden');
@@ -2606,7 +3437,11 @@
 
         function handleLogout() {
             if (!confirm('هل تريد تسجيل الخروج من البرنامج؟')) return;
-            window.fb.signOut(window.fb.auth);
+            window.fb.signOut(window.fb.auth).finally(() => {
+                localStorage.removeItem(STORAGE_KEY_DATASETS);
+                localStorage.removeItem('grade_analyzer_last_user');
+                location.reload();
+            });
         }
 
         // الاستماع المباشر لكل مجموعات البيانات (كل الصفوف والشعب والمواد التي أدخلها أي معلم)
@@ -2615,12 +3450,13 @@
                 unsubscribeDatasetsListener();
                 unsubscribeDatasetsListener = null;
             }
-            const colRef = window.fb.collection(window.fb.db, ...CLOUD_COLLECTION_PATH);
+            const baseRef = window.fb.collection(window.fb.db, ...CLOUD_COLLECTION_PATH);
+            const colRef = isAdminUser ? baseRef : window.fb.query(baseRef, window.fb.where('ownerEmail', '==', currentUserEmail));
             unsubscribeDatasetsListener = window.fb.onSnapshot(colRef, (snapshot) => {
                 snapshot.forEach(docSnap => {
                     const data = docSnap.data();
                     const key = data.key || decodeURIComponent(docSnap.id);
-                    datasets[key] = { meta: data.meta, students: data.students || [] };
+                    datasets[key] = { meta: data.meta, students: data.students || [], ownerEmail: data.ownerEmail, cloudDocId: docSnap.id };
                     migrateFinalScores(datasets[key].students);
                 });
 
@@ -2639,9 +3475,13 @@
             if (!cloudReady || !window.fb) return;
             const ds = datasets[key];
             if (!ds) return;
-            const docId = encodeURIComponent(key);
+            if (!ds.ownerEmail && !ds.cloudDocId) ds.ownerEmail = currentUserEmail;
+            const docId = ds.cloudDocId || (encodeURIComponent(key) + '~' + encodeURIComponent(ds.ownerEmail));
+            ds.cloudDocId = docId;
             const docRef = window.fb.doc(window.fb.db, ...CLOUD_COLLECTION_PATH, docId);
-            window.fb.setDoc(docRef, { key, meta: ds.meta, students: ds.students })
+            const payload = { key, meta: ds.meta, students: ds.students };
+            if (ds.ownerEmail) payload.ownerEmail = ds.ownerEmail;
+            window.fb.setDoc(docRef, payload)
                 .catch(err => console.error('Push to cloud error:', err));
         }
     </script>
