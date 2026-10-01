@@ -740,6 +740,14 @@
                 <label class="block text-sm font-semibold mb-1.5">شعب هذا المعلم (الصف - الشعبة - المادة)</label>
                 <select id="adminDatasetSelect" onchange="gotoDataset(this.value)" class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 text-sm"></select>
             </div>
+            <div class="md:col-span-2">
+                <button type="button" onclick="toggleAdminNames()" class="text-xs font-bold text-blue-300 hover:text-blue-200">تسمية المعلمين (أسماء بدل البريد)</button>
+                <div id="adminNamesBox" class="hidden mt-3 space-y-2">
+                    <p class="text-xs text-slate-300 leading-6">اكتب في كل سطر: بريد المعلم ثم اسمه (افصل بينهما بفاصلة أو Tab). يمكنك لصق عمودين مباشرة من Excel. تُحفظ الأسماء على هذا الجهاز لعرضها في هذه القائمة فقط.</p>
+                    <textarea id="adminNamesText" rows="8" dir="ltr" class="w-full px-3 py-2 bg-slate-700 border border-slate-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 text-sm font-mono"></textarea>
+                    <button type="button" onclick="saveAdminNames()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm">حفظ الأسماء</button>
+                </div>
+            </div>
         </div>
 
         <!-- لوحة الإعدادات الشاملة -->
@@ -2829,6 +2837,31 @@
                 (f === '__all__' || (f === '__none__' ? !d.ownerEmail : d.ownerEmail === f)));
         }
 
+        function getTeacherNames() {
+            try { return JSON.parse(localStorage.getItem('grade_analyzer_teacher_names') || '{}'); } catch (e) { return {}; }
+        }
+        function toggleAdminNames() {
+            const box = document.getElementById('adminNamesBox');
+            const show = box.classList.contains('hidden');
+            box.classList.toggle('hidden', !show);
+            if (show) {
+                const names = getTeacherNames();
+                const emails = new Set(Object.keys(names));
+                Object.values(datasets).forEach(d => { if (d.ownerEmail) emails.add(d.ownerEmail); });
+                document.getElementById('adminNamesText').value = Array.from(emails).sort().map(e => e + '\t' + (names[e] || '')).join('\n');
+            }
+        }
+        function saveAdminNames() {
+            const names = getTeacherNames();
+            document.getElementById('adminNamesText').value.split(/\r?\n/).forEach(line => {
+                const parts = line.split(/[\t,،;]/).map(x => x.trim()).filter(Boolean);
+                if (parts.length >= 2 && parts[0].includes('@')) names[parts[0].toLowerCase()] = parts.slice(1).join(' ');
+            });
+            localStorage.setItem('grade_analyzer_teacher_names', JSON.stringify(names));
+            refreshAdminOwnerSelect();
+            showToast('تم حفظ أسماء المعلمين', 'success');
+        }
+
         function refreshAdminOwnerSelect() {
             if (!isAdminUser) return;
             const sel = document.getElementById('adminOwnerSelect');
@@ -2841,7 +2874,8 @@
             });
             const owners = Object.keys(counts).filter(o => o !== '__none__').sort();
             let html = '<option value="__all__">كل المعلمين</option>';
-            owners.forEach(o => { html += `<option value="${riskEsc(o)}">${riskEsc(o)} (${counts[o]} شعبة)</option>`; });
+            const names = getTeacherNames();
+            owners.forEach(o => { html += `<option value="${riskEsc(o)}" title="${riskEsc(o)}">${riskEsc(names[o] || o)} (${counts[o]} شعبة)</option>`; });
             if (counts['__none__']) html += `<option value="__none__">شعب بلا مالك (${counts['__none__']})</option>`;
             sel.innerHTML = html;
             sel.value = (prev === '__all__' || counts[prev]) ? prev : '__all__';
