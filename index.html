@@ -806,7 +806,7 @@
                 
                 <div class="grid grid-cols-2 gap-4">
                     <div class="col-span-2 sm:col-span-1">
-                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">نوع التقييم</label>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">نوع التقييم <button type="button" onclick="addCustomTest()" class="text-xs text-blue-600 hover:text-blue-800 font-bold mr-2">+ اختبار إضافي</button></label>
                         <select id="singleCategory" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none">
                             <option value="diagnostic">اختبار تشخيصي</option>
                             <option value="formative1">اختبار تكويني 1</option>
@@ -846,7 +846,7 @@
                 
                 <div class="grid grid-cols-2 gap-4">
                     <div class="col-span-2 sm:col-span-1">
-                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">نوع التقييم للدفعة</label>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1.5">نوع التقييم للدفعة <button type="button" onclick="addCustomTest()" class="text-xs text-blue-600 hover:text-blue-800 font-bold mr-2">+ اختبار إضافي</button></label>
                         <select id="batchCategory" class="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none">
                             <option value="diagnostic">اختبار تشخيصي</option>
                             <option value="formative1">اختبار تكويني 1</option>
@@ -1016,7 +1016,7 @@
                             <th class="p-3 font-semibold text-center border-r border-slate-200">مدرسي</th>
                             <th class="p-3 font-semibold text-center border-r border-slate-200">مركزي</th>
                             <th class="p-3 font-semibold text-center border-r border-slate-200">نهاية الفصل</th>
-                            <th class="p-3 font-bold text-center border-r-2 border-slate-300 bg-blue-50/50">المعدل</th>
+                            <th id="mainAvgTh" class="p-3 font-bold text-center border-r-2 border-slate-300 bg-blue-50/50">المعدل</th>
                             <th class="p-3 font-semibold text-center">التقدير</th>
                             <th class="p-3 font-semibold text-center w-16">إجراء</th>
                         </tr>
@@ -2488,7 +2488,7 @@
             document.getElementById('editStudentName').value = student.name;
 
             const container = document.getElementById('editStudentScoresContainer');
-            container.innerHTML = EDIT_FIELD_DEFS.map(f => {
+            container.innerHTML = editFieldDefs().map(f => {
                 const existing = student.scores[f.key];
                 return `
                     <div class="grid grid-cols-3 gap-2 items-center">
@@ -2527,7 +2527,7 @@
 
             student.name = newName;
 
-            for (const f of EDIT_FIELD_DEFS) {
+            for (const f of editFieldDefs()) {
                 const rawInput = document.querySelector(`[data-edit-raw="${f.key}"]`);
                 const maxInput = document.querySelector(`[data-edit-max="${f.key}"]`);
                 const rawVal = normalizeDigits(rawInput.value.trim());
@@ -2566,6 +2566,7 @@
         }
 
         function renderTable() {
+            refreshCustomTestUI();
             const tbody = document.getElementById('resultsTable');
             const statsContainer = document.getElementById('statsContainer');
             const distContainer = document.getElementById('gradeDistributionContainer');
@@ -2618,6 +2619,7 @@
                     ${renderScoreCell(s.scores['school'])}
                     ${renderScoreCell(s.scores['central'])}
                     ${renderScoreCell(s.scores['final_' + getTermKey()])}
+                    ${customCells(s)}
                     <td class="p-3 text-center border-r-2 border-slate-200 bg-slate-50/50 group-hover:bg-blue-50/50">
                         <span class="inline-block px-2 py-1 font-bold rounded-lg text-slate-800">
                             ${avg}%
@@ -2740,6 +2742,64 @@
             }).join('');
         }
 
+        // === اختبارات إضافية يضيفها المعلم (للمتابعة والتحليل فقط، ولا تدخل في المعدل والتقدير) ===
+        const SC_BASE_COUNT = 8;
+        function customTestsNow() {
+            const ds = datasets[currentDatasetKey];
+            return (ds && Array.isArray(ds.customTests)) ? ds.customTests : [];
+        }
+        function editFieldDefs() {
+            return EDIT_FIELD_DEFS.concat(customTestsNow().map(t => ({ key: t.k, label: t.l + ' (إضافي)' })));
+        }
+        function customCells(s) {
+            return customTestsNow().map(t => renderScoreCell(s.scores[t.k])).join('');
+        }
+        function addCustomTest() {
+            const ds = datasets[currentDatasetKey];
+            if (!ds) return;
+            const name = (prompt('اسم الاختبار الإضافي (مثال: اختبار قصير 1):', '') || '').trim();
+            if (!name) return;
+            ds.customTests = ds.customTests || [];
+            const k = 'x_' + name;
+            if (ds.customTests.some(t => t.k === k)) { showToast('هذا الاختبار موجود مسبقاً', 'error'); return; }
+            ds.customTests.push({ k, l: name });
+            scPersist(currentDatasetKey);
+            showToast('تمت إضافة الاختبار: ' + name, 'success');
+        }
+        function refreshCustomTestUI() {
+            const tests = customTestsNow();
+            ['singleCategory', 'batchCategory'].forEach(id => {
+                const sel = document.getElementById(id);
+                if (!sel) return;
+                sel.querySelectorAll('.custom-opt').forEach(o => o.remove());
+                tests.forEach(t => {
+                    const o = document.createElement('option');
+                    o.value = t.k; o.textContent = t.l + ' (إضافي)'; o.className = 'custom-opt';
+                    sel.appendChild(o);
+                });
+            });
+            const avgTh = document.getElementById('mainAvgTh');
+            if (avgTh) {
+                document.querySelectorAll('.custom-th').forEach(e => e.remove());
+                tests.forEach(t => {
+                    const th = document.createElement('th');
+                    th.className = 'p-3 font-bold text-center custom-th';
+                    th.textContent = t.l;
+                    avgTh.parentNode.insertBefore(th, avgTh);
+                });
+            }
+        }
+        // يضيف الاختبارات الإضافية الموجودة في النطاق إلى نهاية خط التحليل الزمني
+        function scSyncTimeline(targets) {
+            SC_TIMELINE.length = SC_BASE_COUNT;
+            targets.forEach(d => {
+                const ds = datasets[d.key] || d;
+                (ds.customTests || []).forEach(t => {
+                    if (!SC_TIMELINE.some(x => x.k === t.k)) SC_TIMELINE.push({ k: t.k, s: t.l, l: t.l + ' (إضافي)' });
+                });
+            });
+        }
+
         function assignDatasetOwner() {
             if (!isAdminUser || !currentDatasetKey || !datasets[currentDatasetKey]) return;
             const email = (prompt('بريد المعلم الذي ستصبح هذه الشعبة (الصف/الشعبة/المادة المعروضة الآن) خاصة به:', '') || '').trim().toLowerCase();
@@ -2801,6 +2861,7 @@
         function openSpecialModal() {
             const ctx = getCurrentContext();
             const list = getAllDatasetsList();
+            scSyncTimeline(list);
 
             const scope = document.getElementById('scScope');
             scope.innerHTML = `<option value="__year__">كل المجموعات في العام الأكاديمي ${riskEsc(ctx.year)}</option>` +
@@ -2914,6 +2975,13 @@
                 updates.push({ k: t.k, raw, max, norm: parseFloat(((raw / max) * 100).toFixed(2)) });
             }
 
+            ds.customTests = ds.customTests || [];
+            updates.forEach(u => {
+                if (!u.remove && u.k.startsWith('x_') && !ds.customTests.some(t => t.k === u.k)) {
+                    const def = SC_TIMELINE.find(t => t.k === u.k);
+                    ds.customTests.push({ k: u.k, l: def ? def.s : u.k.slice(2) });
+                }
+            });
             let student = ds.students.find(s => s.name === name);
             const isNew = !student;
             if (isNew) {
@@ -2951,6 +3019,7 @@
 
         function scCollectRows() {
             const targets = scGetTargets();
+            scSyncTimeline(targets);
             let thr = parseFloat(normalizeDigits(document.getElementById('scThreshold').value));
             if (isNaN(thr) || thr < 0) thr = 5;
             const autoOn = scTab === 'high' && document.getElementById('scAutoHigh').checked;
@@ -2962,7 +3031,7 @@
             targets.forEach(ds => ds.students.forEach(s => {
                 const tl = SC_TIMELINE.map(t => (s.scores && s.scores[t.k]) ? s.scores[t.k].norm : null);
                 tl.forEach((v, i) => { if (v !== null) { allSum[i].s += v; allSum[i].n++; } });
-                const vals = tl.filter(v => v !== null);
+                const vals = tl.slice(0, SC_BASE_COUNT).filter(v => v !== null);
                 const avg = vals.length ? parseFloat((vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(2)) : null;
                 const tagged = scHasTag(s, scTab);
                 const auto = autoOn && !tagged && avg !== null && avg >= autoThr;
@@ -3456,7 +3525,7 @@
                 snapshot.forEach(docSnap => {
                     const data = docSnap.data();
                     const key = data.key || decodeURIComponent(docSnap.id);
-                    datasets[key] = { meta: data.meta, students: data.students || [], ownerEmail: data.ownerEmail, cloudDocId: docSnap.id };
+                    datasets[key] = { meta: data.meta, students: data.students || [], ownerEmail: data.ownerEmail, cloudDocId: docSnap.id, customTests: data.customTests || [] };
                     migrateFinalScores(datasets[key].students);
                 });
 
@@ -3479,7 +3548,7 @@
             const docId = ds.cloudDocId || (encodeURIComponent(key) + '~' + encodeURIComponent(ds.ownerEmail));
             ds.cloudDocId = docId;
             const docRef = window.fb.doc(window.fb.db, ...CLOUD_COLLECTION_PATH, docId);
-            const payload = { key, meta: ds.meta, students: ds.students };
+            const payload = { key, meta: ds.meta, students: ds.students, customTests: ds.customTests || [] };
             if (ds.ownerEmail) payload.ownerEmail = ds.ownerEmail;
             window.fb.setDoc(docRef, payload)
                 .catch(err => console.error('Push to cloud error:', err));
