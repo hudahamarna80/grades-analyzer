@@ -3563,11 +3563,25 @@
             const baseRef = window.fb.collection(window.fb.db, ...CLOUD_COLLECTION_PATH);
             const colRef = isAdminUser ? baseRef : window.fb.query(baseRef, window.fb.where('ownerEmail', '==', currentUserEmail));
             unsubscribeDatasetsListener = window.fb.onSnapshot(colRef, (snapshot) => {
+                const seenKeys = new Set();
                 snapshot.forEach(docSnap => {
                     const data = docSnap.data();
                     const key = data.key || decodeURIComponent(docSnap.id);
+                    seenKeys.add(key);
                     datasets[key] = { meta: data.meta, students: data.students || [], ownerEmail: data.ownerEmail, cloudDocId: docSnap.id, customTests: data.customTests || [] };
                     migrateFinalScores(datasets[key].students);
+                });
+
+                // شعبة نُقلت إلى معلم آخر أو حُذفت لم تعد في نتيجة الاستعلام: احذفها محلياً حتى لا يعيد حفظها باسمه
+                Object.keys(datasets).forEach(k => {
+                    if (datasets[k].cloudDocId && !seenKeys.has(k)) {
+                        delete datasets[k];
+                        if (k === currentDatasetKey) {
+                            currentDatasetKey = null;
+                            students = [];
+                            switchToCurrentDataset();
+                        }
+                    }
                 });
 
                 // إذا كانت مجموعة البيانات الحالية قد تحدّثت، أعد ربط المرجع المحلي بها
