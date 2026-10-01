@@ -3012,7 +3012,7 @@
         function saveAdminNames() {
             const names = getTeacherNames();
             document.getElementById('adminNamesText').value.split(/\r?\n/).forEach(line => {
-                const parts = line.split(/[\t,،;]/).map(x => x.trim()).filter(Boolean);
+                const parts = line.trim().split(/[\t,،;\s]+/).map(x => x.trim()).filter(Boolean);
                 if (parts.length >= 2 && parts[0].includes('@')) names[parts[0].toLowerCase()] = parts.slice(1).join(' ');
             });
             localStorage.setItem('grade_analyzer_teacher_names', JSON.stringify(names));
@@ -3030,13 +3030,14 @@
                 const o = d.ownerEmail || '__none__';
                 counts[o] = (counts[o] || 0) + 1;
             });
+            const names = getTeacherNames();
+            Object.keys(names).forEach(e => { if (!counts[e]) counts[e] = 0; });
             const owners = Object.keys(counts).filter(o => o !== '__none__').sort();
             let html = '<option value="__all__">كل المعلمين</option>';
-            const names = getTeacherNames();
             owners.forEach(o => { html += `<option value="${riskEsc(o)}" title="${riskEsc(o)}">${riskEsc(names[o] || o)} (${counts[o]} شعبة)</option>`; });
             if (counts['__none__']) html += `<option value="__none__">شعب بلا مالك (${counts['__none__']})</option>`;
             sel.innerHTML = html;
-            sel.value = (prev === '__all__' || counts[prev]) ? prev : '__all__';
+            sel.value = (prev === '__all__' || counts[prev] !== undefined) ? prev : '__all__';
             applyAdminOwnerFilter();
         }
 
@@ -3047,7 +3048,7 @@
             Object.keys(CTX_FIELDS).forEach(id => {
                 const allowed = new Set(list.map(([k, d]) => d.meta[CTX_FIELDS[id]]));
                 Array.from(document.getElementById(id).options).forEach(o => {
-                    const ok = f === '__all__' || allowed.has(o.value);
+                    const ok = f === '__all__' || list.length === 0 || allowed.has(o.value);
                     o.hidden = !ok; o.disabled = !ok;
                 });
             });
