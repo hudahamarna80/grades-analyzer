@@ -730,6 +730,18 @@
             </div>
         </header>
 
+        <!-- شريط المسؤول: اختيار المعلم والشعبة -->
+        <div id="adminBar" class="hidden bg-slate-800 text-white p-4 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-4 relative z-20">
+            <div>
+                <label class="block text-sm font-semibold mb-1.5">المعلم</label>
+                <select id="adminOwnerSelect" onchange="applyAdminOwnerFilter()" class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 text-sm"></select>
+            </div>
+            <div id="adminDatasetWrap" class="hidden">
+                <label class="block text-sm font-semibold mb-1.5">شعب هذا المعلم (الصف - الشعبة - المادة)</label>
+                <select id="adminDatasetSelect" onchange="gotoDataset(this.value)" class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 text-sm"></select>
+            </div>
+        </div>
+
         <!-- لوحة الإعدادات الشاملة -->
         <div class="bg-white p-6 rounded-2xl shadow-sm border border-slate-200 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4 relative z-20">
             <div>
@@ -2809,6 +2821,64 @@
             });
         }
 
+        // === المسؤول: اختيار المعلم ثم شعبته ومادته لعرض البيانات ===
+        const CTX_FIELDS = { academicYear: 'year', subjectName: 'subject', studyCycle: 'cycle', gradeLevel: 'grade', sectionName: 'section' };
+
+        function adminDatasetsOf(f) {
+            return Object.entries(datasets).filter(([k, d]) => d.meta && d.cloudDocId &&
+                (f === '__all__' || (f === '__none__' ? !d.ownerEmail : d.ownerEmail === f)));
+        }
+
+        function refreshAdminOwnerSelect() {
+            if (!isAdminUser) return;
+            const sel = document.getElementById('adminOwnerSelect');
+            const prev = sel.value || '__all__';
+            const counts = {};
+            Object.values(datasets).forEach(d => {
+                if (!d.cloudDocId) return;
+                const o = d.ownerEmail || '__none__';
+                counts[o] = (counts[o] || 0) + 1;
+            });
+            const owners = Object.keys(counts).filter(o => o !== '__none__').sort();
+            let html = '<option value="__all__">كل المعلمين</option>';
+            owners.forEach(o => { html += `<option value="${riskEsc(o)}">${riskEsc(o)} (${counts[o]} شعبة)</option>`; });
+            if (counts['__none__']) html += `<option value="__none__">شعب بلا مالك (${counts['__none__']})</option>`;
+            sel.innerHTML = html;
+            sel.value = (prev === '__all__' || counts[prev]) ? prev : '__all__';
+            applyAdminOwnerFilter();
+        }
+
+        function applyAdminOwnerFilter() {
+            if (!isAdminUser) return;
+            const f = document.getElementById('adminOwnerSelect').value || '__all__';
+            const list = adminDatasetsOf(f);
+            Object.keys(CTX_FIELDS).forEach(id => {
+                const allowed = new Set(list.map(([k, d]) => d.meta[CTX_FIELDS[id]]));
+                Array.from(document.getElementById(id).options).forEach(o => {
+                    const ok = f === '__all__' || allowed.has(o.value);
+                    o.hidden = !ok; o.disabled = !ok;
+                });
+            });
+            const ds2 = document.getElementById('adminDatasetSelect');
+            ds2.innerHTML = list.map(([k, d]) => `<option value="${riskEsc(k)}">${riskEsc(getDatasetLabel(d.meta))}</option>`).join('');
+            document.getElementById('adminDatasetWrap').classList.toggle('hidden', f === '__all__' || list.length === 0);
+            if (f !== '__all__' && list.length) {
+                const c = getCurrentContext();
+                const curKey = getDatasetKey(c.year, c.subject, c.grade, c.section, c.cycle);
+                if (list.some(([k]) => k === curKey)) ds2.value = curKey;
+                else gotoDataset(list[0][0]);
+            }
+        }
+
+        function gotoDataset(key) {
+            const d = datasets[key];
+            if (!d || !d.meta) return;
+            Object.keys(CTX_FIELDS).forEach(id => { document.getElementById(id).value = d.meta[CTX_FIELDS[id]]; });
+            const ds2 = document.getElementById('adminDatasetSelect');
+            if (ds2 && Array.from(ds2.options).some(o => o.value === key)) ds2.value = key;
+            onDatasetContextChange();
+        }
+
         function showAccessNotice(mode) {
             const box = document.getElementById('accessNotice');
             if (!box) return;
@@ -2848,6 +2918,7 @@
             localStorage.setItem(STORAGE_KEY_DATASETS, JSON.stringify(datasets));
             pushDatasetToCloud(currentDatasetKey);
             showToast('تم نقل الشعبة إلى ' + email, 'success');
+            refreshAdminOwnerSelect();
         }
 
         // === الفئات الخاصة: ذوو الهمم / الموهوبون / المتفوقون ===
@@ -3486,6 +3557,7 @@
                         const ab = document.getElementById('assignOwnerBtn');
                         if (ab) ab.classList.toggle('hidden', !isAdminUser);
                         showAccessNotice(isAdminUser ? null : 'loading');
+                        document.getElementById('adminBar').classList.toggle('hidden', !isAdminUser);
                         // منع ظهور/رفع بيانات مستخدم آخر محفوظة في هذا المتصفح
                         if (localStorage.getItem('grade_analyzer_last_user') !== currentUserEmail) {
                             localStorage.removeItem(STORAGE_KEY_DATASETS);
@@ -3589,6 +3661,7 @@
                     students = datasets[currentDatasetKey].students;
                 }
                 applyTeacherRestriction();
+                refreshAdminOwnerSelect();
                 renderTable();
             }, (error) => {
                 console.error('Cloud sync error:', error);
