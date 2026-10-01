@@ -470,6 +470,44 @@
         </div>
     </div>
 
+    <!-- نافذة المسؤول: تعيين الشعب للمعلمين دفعة واحدة -->
+    <div id="bulkModal" class="fixed inset-0 bg-slate-900/50 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="p-5 bg-slate-800 text-white flex justify-between items-center">
+                <h3 class="text-lg font-bold">تعيين الشعب للمعلمين دفعة واحدة</h3>
+                <button onclick="closeBulkAssign()" class="text-white hover:text-slate-300 text-xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-4">
+                <p class="text-sm text-slate-600 leading-7">
+                    اختر المعلم ثم الصفوف والشعب والمواد التي يدرّسها، واضغط «إضافة إلى القائمة». كرر ذلك لكل معلم، ثم راجع القائمة واضغط «تنفيذ التعيين».
+                    العام الأكاديمي المستخدم: <b id="bulkYear"></b> (غيّره من لوحة الإعدادات قبل فتح هذه النافذة). الشعبة المعيّنة لمعلم آخر تُنقل إلى المعلم الجديد.
+                </p>
+                <div class="space-y-3 bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <div>
+                        <label class="block text-sm font-semibold text-slate-700 mb-1">المعلم (اختر الاسم من القائمة أو اكتب البريد)</label>
+                        <input id="bulkTeacher" list="bulkTeacherList" autocomplete="off" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        <datalist id="bulkTeacherList"></datalist>
+                    </div>
+                    <div><span class="text-sm font-semibold text-slate-700">الصفوف</span><div id="bulkGrades" class="flex flex-wrap gap-2 mt-1"></div></div>
+                    <div><span class="text-sm font-semibold text-slate-700">الشعب</span><div id="bulkSections" class="flex flex-wrap gap-2 mt-1"></div></div>
+                    <div><span class="text-sm font-semibold text-slate-700">المواد</span><div id="bulkSubjects" class="flex flex-wrap gap-2 mt-1"></div></div>
+                    <button type="button" onclick="bulkAddFromForm()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm">+ إضافة إلى القائمة</button>
+                </div>
+                <details class="text-sm">
+                    <summary class="cursor-pointer font-semibold text-slate-700">القائمة (بريد، صف، شعبة، مادة) - يمكن تعديلها أو مسحها</summary>
+                    <textarea id="bulkText" rows="8" class="mt-2 w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"></textarea>
+                    <button type="button" onclick="document.getElementById('bulkText').value='';bulkPreview()" class="text-xs text-rose-600 font-bold">مسح القائمة</button>
+                </details>
+                <div id="bulkPreview" class="text-sm"></div>
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2 flex-wrap">
+                <button onclick="bulkPreview()" class="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm">معاينة</button>
+                <button onclick="bulkApply()" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm">تنفيذ التعيين</button>
+                <button onclick="closeBulkAssign()" class="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
     <!-- شاشة حجب: معلم لم تُعيَّن له شعب بعد -->
     <div id="accessNotice" class="hidden fixed inset-0 z-[60] bg-slate-50 flex items-center justify-center p-6">
         <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-8 text-center space-y-4">
@@ -741,6 +779,7 @@
                 <select id="adminDatasetSelect" onchange="gotoDataset(this.value)" class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 text-sm"></select>
             </div>
             <div class="md:col-span-2">
+                <button type="button" onclick="openBulkAssign()" class="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg ml-3">تعيين الشعب للمعلمين دفعة واحدة</button>
                 <button type="button" onclick="toggleAdminNames()" class="text-xs font-bold text-blue-300 hover:text-blue-200">تسمية المعلمين (أسماء بدل البريد)</button>
                 <div id="adminNamesBox" class="hidden mt-3 space-y-2">
                     <p class="text-xs text-slate-300 leading-6">اكتب في كل سطر: بريد المعلم ثم اسمه (افصل بينهما بفاصلة أو Tab). يمكنك لصق عمودين مباشرة من Excel. تُحفظ الأسماء على هذا الجهاز لعرضها في هذه القائمة فقط.</p>
@@ -2837,6 +2876,125 @@
                 (f === '__all__' || (f === '__none__' ? !d.ownerEmail : d.ownerEmail === f)));
         }
 
+        // === المسؤول: تعيين الشعب للمعلمين دفعة واحدة ===
+        function ensureSectionOptions() {
+            const sel = document.getElementById('sectionName');
+            const have = new Set(Array.from(sel.options).map(o => o.value));
+            let added = false;
+            Object.values(datasets).forEach(d => {
+                const v = d.meta && d.meta.section;
+                if (v && !have.has(String(v))) {
+                    const o = document.createElement('option');
+                    o.value = v; o.textContent = 'الشعبة ' + v;
+                    sel.appendChild(o); have.add(String(v)); added = true;
+                }
+            });
+            if (added) {
+                const cur = sel.value;
+                Array.from(sel.options).sort((a, b) => (parseInt(a.value) || 0) - (parseInt(b.value) || 0)).forEach(o => sel.appendChild(o));
+                sel.value = cur;
+            }
+        }
+        function openBulkAssign() {
+            if (!isAdminUser) return;
+            document.getElementById('bulkYear').textContent = document.getElementById('academicYear').value;
+            document.getElementById('bulkPreview').innerHTML = '';
+            const chips = (id, values, labelFn) => {
+                document.getElementById(id).innerHTML = values.map(v =>
+                    `<label class="flex items-center gap-1.5 text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 cursor-pointer"><input type="checkbox" value="${riskEsc(v)}" class="rounded border-slate-300 text-blue-600"> ${riskEsc(labelFn ? labelFn(v) : v)}</label>`).join('');
+            };
+            chips('bulkGrades', Array.from(document.getElementById('gradeLevel').options).map(o => o.value));
+            const secs = new Set(['1', '2', '3', '4', '5', '6', '7', '8']);
+            Array.from(document.getElementById('sectionName').options).forEach(o => secs.add(o.value));
+            chips('bulkSections', Array.from(secs).sort((a, b) => a - b), v => 'شعبة ' + v);
+            chips('bulkSubjects', Array.from(document.getElementById('subjectName').options).map(o => o.value));
+            const names = getTeacherNames();
+            const owners = new Set(Object.values(datasets).map(d => d.ownerEmail).filter(Boolean));
+            let opts = Object.keys(names).map(e => `<option value="${riskEsc(names[e])}" label="${riskEsc(e)}"></option>`).join('');
+            owners.forEach(e => { if (!names[e]) opts += `<option value="${riskEsc(e)}"></option>`; });
+            document.getElementById('bulkTeacherList').innerHTML = opts;
+            document.getElementById('bulkModal').classList.remove('hidden');
+        }
+        function closeBulkAssign() { document.getElementById('bulkModal').classList.add('hidden'); }
+
+        function bulkParse() {
+            const year = document.getElementById('academicYear').value;
+            const grades = Array.from(document.getElementById('gradeLevel').options).map(o => o.value);
+            const subjects = Array.from(document.getElementById('subjectName').options).map(o => o.value);
+            const cycles = Array.from(document.getElementById('studyCycle').options).map(o => o.value);
+            const find = (list, t) => list.find(o => o === t) || list.find(o => o.includes(t)) || list.find(o => t.includes(o));
+            const rows = [], errors = [];
+            document.getElementById('bulkText').value.split(/\r?\n/).forEach((line, i) => {
+                const p = line.split(/[\t,،;]/).map(x => x.trim()).filter(Boolean);
+                if (!p.length) return;
+                const email = (p[0] || '').toLowerCase();
+                if (p.length < 4) { errors.push(`سطر ${i + 1}: الحقول ناقصة (المطلوب أربعة)`); return; }
+                if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { errors.push(`سطر ${i + 1}: بريد غير صحيح`); return; }
+                const grade = find(grades, p[1]);
+                const subject = find(subjects, p[3]);
+                const section = normalizeDigits(p[2]).replace(/\D/g, '');
+                if (!grade) { errors.push(`سطر ${i + 1}: الصف غير معروف (${p[1]})`); return; }
+                if (!subject) { errors.push(`سطر ${i + 1}: المادة غير معروفة (${p[3]})`); return; }
+                if (!section) { errors.push(`سطر ${i + 1}: رقم الشعبة غير صحيح`); return; }
+                const gi = grades.indexOf(grade);
+                const cycle = cycles[gi < 4 ? 0 : gi < 8 ? 1 : 2];
+                rows.push({ email, year, grade, section, subject, cycle, key: getDatasetKey(year, subject, grade, section, cycle) });
+            });
+            return { rows, errors };
+        }
+        function bulkAddFromForm() {
+            const raw = document.getElementById('bulkTeacher').value.trim();
+            const names = getTeacherNames();
+            let email = raw.toLowerCase();
+            if (!email.includes('@')) {
+                const hit = Object.keys(names).find(e => names[e] === raw);
+                if (!hit) { showToast('اختر اسم المعلم من القائمة أو اكتب بريده', 'error'); return; }
+                email = hit;
+            }
+            const pick = id => Array.from(document.querySelectorAll('#' + id + ' input:checked')).map(i => i.value);
+            const g = pick('bulkGrades'), sec = pick('bulkSections'), sub = pick('bulkSubjects');
+            if (!g.length || !sec.length || !sub.length) { showToast('اختر صفاً وشعبة ومادة على الأقل', 'error'); return; }
+            const lines = [];
+            g.forEach(a => sec.forEach(b => sub.forEach(c => lines.push([email, a, b, c].join(', ')))));
+            const ta = document.getElementById('bulkText');
+            ta.value = (ta.value.trim() ? ta.value.trim() + '\n' : '') + lines.join('\n');
+            document.querySelectorAll('#bulkGrades input, #bulkSections input, #bulkSubjects input').forEach(i => { i.checked = false; });
+            document.getElementById('bulkTeacher').value = '';
+            bulkPreview();
+        }
+        function bulkPreview() {
+            const { rows, errors } = bulkParse();
+            const names = getTeacherNames();
+            let html = `<p class="font-bold">${rows.length} سطر صالح${errors.length ? ` | <span class="text-rose-600">${errors.length} سطر به خطأ</span>` : ''}</p>`;
+            if (errors.length) html += '<ul class="text-rose-600 text-xs list-disc pr-5 mb-2">' + errors.map(e => `<li>${riskEsc(e)}</li>`).join('') + '</ul>';
+            if (rows.length) {
+                html += '<div class="overflow-x-auto border border-slate-200 rounded-xl max-h-64"><table class="w-full text-right text-xs"><thead class="bg-slate-50"><tr><th class="p-2">المعلم</th><th class="p-2">الصف</th><th class="p-2">الشعبة</th><th class="p-2">المادة</th><th class="p-2">الحالة</th></tr></thead><tbody>';
+                html += rows.map(r => {
+                    const ex = datasets[r.key];
+                    const st = !ex ? 'جديدة' : (ex.ownerEmail === r.email ? 'مُعيّنة له أصلاً' : 'نقل من معلم آخر');
+                    return `<tr class="border-t border-slate-100"><td class="p-2">${riskEsc(names[r.email] || r.email)}</td><td class="p-2">${riskEsc(r.grade)}</td><td class="p-2">${riskEsc(r.section)}</td><td class="p-2">${riskEsc(r.subject)}</td><td class="p-2">${st}</td></tr>`;
+                }).join('') + '</tbody></table></div>';
+            }
+            document.getElementById('bulkPreview').innerHTML = html;
+        }
+        function bulkApply() {
+            if (!isAdminUser) return;
+            const { rows, errors } = bulkParse();
+            if (!rows.length) { showToast('لا توجد أسطر صالحة للتنفيذ', 'error'); return; }
+            if (errors.length && !confirm(`يوجد ${errors.length} سطر به خطأ وسيتم تجاهله. المتابعة؟`)) return;
+            rows.forEach(r => {
+                let ds = datasets[r.key];
+                if (!ds) ds = datasets[r.key] = { meta: { year: r.year, subject: r.subject, grade: r.grade, section: r.section, cycle: r.cycle }, students: [] };
+                ds.ownerEmail = r.email;
+                pushDatasetToCloud(r.key);
+            });
+            localStorage.setItem(STORAGE_KEY_DATASETS, JSON.stringify(datasets));
+            ensureSectionOptions();
+            refreshAdminOwnerSelect();
+            closeBulkAssign();
+            showToast(`تم تعيين ${rows.length} شعبة`, 'success');
+        }
+
         function getTeacherNames() {
             try { return JSON.parse(localStorage.getItem('grade_analyzer_teacher_names') || '{}'); } catch (e) { return {}; }
         }
@@ -3694,6 +3852,7 @@
                 if (currentDatasetKey && datasets[currentDatasetKey]) {
                     students = datasets[currentDatasetKey].students;
                 }
+                ensureSectionOptions();
                 applyTeacherRestriction();
                 refreshAdminOwnerSelect();
                 renderTable();
