@@ -470,6 +470,15 @@
         </div>
     </div>
 
+    <!-- شاشة حجب: معلم لم تُعيَّن له شعب بعد -->
+    <div id="accessNotice" class="hidden fixed inset-0 z-[60] bg-slate-50 flex items-center justify-center p-6">
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-8 text-center space-y-4">
+            <h3 id="accessNoticeTitle" class="text-lg font-bold text-slate-800"></h3>
+            <p id="accessNoticeText" class="text-sm text-slate-600 leading-7"></p>
+            <button onclick="handleLogout()" class="px-5 py-2.5 rounded-lg bg-slate-700 hover:bg-slate-800 text-white font-bold text-sm">تسجيل الخروج</button>
+        </div>
+    </div>
+
     <!-- نافذة الفئات الخاصة: ذوو الهمم / الموهوبون / المتفوقون -->
     <div id="specialModal" class="print-target fixed inset-0 bg-slate-900/50 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
         <div class="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[92vh] flex flex-col overflow-hidden">
@@ -2800,6 +2809,37 @@
             });
         }
 
+        function showAccessNotice(mode) {
+            const box = document.getElementById('accessNotice');
+            if (!box) return;
+            if (!mode) { box.classList.add('hidden'); return; }
+            document.getElementById('accessNoticeTitle').textContent = mode === 'loading' ? 'جارٍ تحميل شعبك...' : 'لم تُعيَّن لك أي شعبة بعد';
+            document.getElementById('accessNoticeText').textContent = mode === 'loading'
+                ? 'إن استمرت هذه الشاشة طويلاً فتواصل مع إدارة المدرسة.'
+                : 'تواصل مع إدارة المدرسة لتعيين الصفوف والشعب والمواد التي تدرّسها، وستظهر لك هنا بعد التعيين.';
+            box.classList.remove('hidden');
+        }
+        // المعلم يرى في القوائم الصفوف والمواد والشعب التي عُيّنت له فقط (المسؤول يرى كل شيء)
+        function applyTeacherRestriction() {
+            if (isAdminUser) return;
+            const own = Object.values(datasets).filter(d => d.ownerEmail === currentUserEmail && d.meta);
+            if (own.length === 0) { showAccessNotice('none'); return; }
+            showAccessNotice(null);
+            const map = { academicYear: 'year', subjectName: 'subject', studyCycle: 'cycle', gradeLevel: 'grade', sectionName: 'section' };
+            Object.keys(map).forEach(id => {
+                const sel = document.getElementById(id);
+                const allowed = new Set(own.map(d => d.meta[map[id]]));
+                Array.from(sel.options).forEach(o => { const ok = allowed.has(o.value); o.hidden = !ok; o.disabled = !ok; });
+            });
+            const c = getCurrentContext();
+            const cur = datasets[getDatasetKey(c.year, c.subject, c.grade, c.section, c.cycle)];
+            if (!cur || cur.ownerEmail !== currentUserEmail) {
+                const m = own[0].meta;
+                Object.keys(map).forEach(id => { document.getElementById(id).value = m[map[id]]; });
+                onDatasetContextChange();
+            }
+        }
+
         function assignDatasetOwner() {
             if (!isAdminUser || !currentDatasetKey || !datasets[currentDatasetKey]) return;
             const email = (prompt('بريد المعلم الذي ستصبح هذه الشعبة (الصف/الشعبة/المادة المعروضة الآن) خاصة به:', '') || '').trim().toLowerCase();
@@ -3445,6 +3485,7 @@
                         isAdminUser = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(currentUserEmail);
                         const ab = document.getElementById('assignOwnerBtn');
                         if (ab) ab.classList.toggle('hidden', !isAdminUser);
+                        showAccessNotice(isAdminUser ? null : 'loading');
                         // منع ظهور/رفع بيانات مستخدم آخر محفوظة في هذا المتصفح
                         if (localStorage.getItem('grade_analyzer_last_user') !== currentUserEmail) {
                             localStorage.removeItem(STORAGE_KEY_DATASETS);
@@ -3533,6 +3574,7 @@
                 if (currentDatasetKey && datasets[currentDatasetKey]) {
                     students = datasets[currentDatasetKey].students;
                 }
+                applyTeacherRestriction();
                 renderTable();
             }, (error) => {
                 console.error('Cloud sync error:', error);
