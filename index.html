@@ -492,6 +492,7 @@
                     <div><span class="text-sm font-semibold text-slate-700">الشعب</span><div id="bulkSections" class="flex flex-wrap gap-2 mt-1"></div></div>
                     <div><span class="text-sm font-semibold text-slate-700">المواد</span><div id="bulkSubjects" class="flex flex-wrap gap-2 mt-1"></div></div>
                     <button type="button" onclick="bulkAddFromForm()" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm">+ إضافة إلى القائمة</button>
+                    <p id="bulkMsg" class="text-sm font-bold mt-2"></p>
                 </div>
                 <details class="text-sm">
                     <summary class="cursor-pointer font-semibold text-slate-700">القائمة (بريد، صف، شعبة، مادة) - يمكن تعديلها أو مسحها</summary>
@@ -504,6 +505,47 @@
                 <button onclick="bulkPreview()" class="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm">معاينة</button>
                 <button onclick="bulkApply()" class="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm">تنفيذ التعيين</button>
                 <button onclick="closeBulkAssign()" class="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- إدخال الأسماء مرة واحدة ثم درجات كل اختبار في جدول واحد -->
+    <div id="rosterModal" class="fixed inset-0 bg-slate-900/50 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="p-5 bg-emerald-600 text-white flex justify-between items-center">
+                <h3 class="text-lg font-bold">إدخال الدرجات لكل الطلاب</h3>
+                <button onclick="closeRosterModal()" class="text-white hover:text-emerald-100 text-xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-5">
+                <details class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                    <summary class="cursor-pointer font-bold text-slate-800 text-sm">1) إضافة أسماء الطلاب (مرة واحدة فقط)</summary>
+                    <div class="mt-3 space-y-2">
+                        <textarea id="rosterNames" rows="6" placeholder="اكتب أو الصق اسماً في كل سطر" class="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-emerald-500 text-sm"></textarea>
+                        <button type="button" onclick="rosterAddNames()" class="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm">إضافة الأسماء</button>
+                    </div>
+                </details>
+                <div class="space-y-3">
+                    <p class="font-bold text-slate-800 text-sm">2) درجات اختبار لكل الطلاب</p>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">الاختبار <button type="button" onclick="rosterNewTest()" class="text-blue-600 font-bold mr-2">+ اختبار إضافي</button></label>
+                            <select id="rosterCategory" onchange="renderRosterTable(true)" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 text-sm"></select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-slate-600 mb-1">الدرجة الكلية</label>
+                            <input id="rosterMax" type="text" inputmode="decimal" value="20" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 text-sm text-center">
+                        </div>
+                    </div>
+                    <div class="overflow-y-auto border border-slate-200 rounded-xl" style="max-height:40vh">
+                        <table class="w-full text-right text-sm"><thead class="bg-slate-50 sticky top-0"><tr><th class="p-2 w-10 text-center">#</th><th class="p-2">اسم الطالب</th><th class="p-2 w-32 text-center">الدرجة</th></tr></thead><tbody id="rosterBody"></tbody></table>
+                    </div>
+                    <p class="text-xs text-slate-500">اضغط Enter للانتقال إلى الطالب التالي. الخانة الفارغة لا تغيّر درجة الطالب السابقة، ولحذف درجة استخدم زر تعديل الطالب في الجدول الرئيسي.</p>
+                    <p id="rosterMsg" class="text-sm font-bold"></p>
+                </div>
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+                <button onclick="rosterSave()" class="px-5 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm">حفظ الدرجات</button>
+                <button onclick="closeRosterModal()" class="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm">إغلاق</button>
             </div>
         </div>
     </div>
@@ -768,6 +810,12 @@
             </div>
         </header>
 
+        <!-- شريط المعلم: كل شعبه في قائمة واحدة -->
+        <div id="teacherBar" class="hidden bg-slate-800 text-white p-4 rounded-2xl relative z-20">
+            <label class="block text-sm font-semibold mb-1.5">شعبي (الصف - الشعبة - المادة)</label>
+            <select id="teacherDatasetSelect" onchange="gotoDataset(this.value)" class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 text-sm"></select>
+        </div>
+
         <!-- شريط المسؤول: اختيار المعلم والشعبة -->
         <div id="adminBar" class="hidden bg-slate-800 text-white p-4 rounded-2xl grid grid-cols-1 md:grid-cols-2 gap-4 relative z-20">
             <div>
@@ -777,6 +825,7 @@
             <div id="adminDatasetWrap" class="hidden">
                 <label class="block text-sm font-semibold mb-1.5">شعب هذا المعلم (الصف - الشعبة - المادة)</label>
                 <select id="adminDatasetSelect" onchange="gotoDataset(this.value)" class="w-full px-4 py-2.5 bg-slate-700 border border-slate-600 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 text-sm"></select>
+                <button type="button" onclick="adminDeleteDataset()" class="mt-2 text-xs font-bold text-rose-300 hover:text-rose-200">حذف هذه الشعبة نهائياً (تختفي من عند المعلم)</button>
             </div>
             <div class="md:col-span-2">
                 <button type="button" onclick="openBulkAssign()" class="text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg ml-3">تعيين الشعب للمعلمين دفعة واحدة</button>
@@ -1044,6 +1093,7 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         توليد تقرير نسب PDF
                     </button>
+                    <button onclick="openRosterModal()" class="text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg transition-colors" title="أضف أسماء الطلاب مرة واحدة ثم أدخل درجات كل اختبار في جدول واحد">إدخال الدرجات لكل الطلاب</button>
                     <button onclick="assignDatasetOwner()" id="assignOwnerBtn" class="hidden text-sm bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 px-4 rounded-lg transition-colors" title="للمسؤول فقط: تعيين معلم مالكاً للمجموعة المعروضة">نقل الشعبة إلى معلم</button>
                     <button onclick="openSpecialModal()" class="text-sm bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2" title="ذوو الهمم والموهوبون والمتفوقون: إضافة الأسماء والدرجات وتحليل التقدم">
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" /></svg>
@@ -2942,18 +2992,23 @@
             });
             return { rows, errors };
         }
+        function bulkMsg(text, ok) {
+            const el = document.getElementById('bulkMsg');
+            el.className = 'text-sm font-bold mt-2 ' + (ok ? 'text-emerald-600' : 'text-rose-600');
+            el.textContent = text;
+        }
         function bulkAddFromForm() {
             const raw = document.getElementById('bulkTeacher').value.trim();
             const names = getTeacherNames();
             let email = raw.toLowerCase();
             if (!email.includes('@')) {
                 const hit = Object.keys(names).find(e => names[e] === raw);
-                if (!hit) { showToast('اختر اسم المعلم من القائمة أو اكتب بريده', 'error'); return; }
+                if (!hit) { bulkMsg(raw ? 'الاسم "' + raw + '" غير مسجّل. اكتب بريد المعلم، أو سجّل اسمه أولاً من «تسمية المعلمين».' : 'اكتب بريد المعلم أو اختر اسمه من القائمة.', false); return; }
                 email = hit;
             }
             const pick = id => Array.from(document.querySelectorAll('#' + id + ' input:checked')).map(i => i.value);
             const g = pick('bulkGrades'), sec = pick('bulkSections'), sub = pick('bulkSubjects');
-            if (!g.length || !sec.length || !sub.length) { showToast('اختر صفاً وشعبة ومادة على الأقل', 'error'); return; }
+            if (!g.length || !sec.length || !sub.length) { bulkMsg('اختر ما ينقصك: ' + [!g.length ? 'صفاً' : '', !sec.length ? 'شعبة' : '', !sub.length ? 'مادة' : ''].filter(Boolean).join(' و') + '.', false); return; }
             const lines = [];
             g.forEach(a => sec.forEach(b => sub.forEach(c => lines.push([email, a, b, c].join(', ')))));
             const ta = document.getElementById('bulkText');
@@ -2961,6 +3016,7 @@
             document.querySelectorAll('#bulkGrades input, #bulkSections input, #bulkSubjects input').forEach(i => { i.checked = false; });
             document.getElementById('bulkTeacher').value = '';
             bulkPreview();
+            bulkMsg('تمت إضافة ' + lines.length + ' شعبة إلى القائمة. راجعها بالأسفل ثم اضغط «تنفيذ التعيين».', true);
         }
         function bulkPreview() {
             const { rows, errors } = bulkParse();
@@ -2993,6 +3049,115 @@
             refreshAdminOwnerSelect();
             closeBulkAssign();
             showToast(`تم تعيين ${rows.length} شعبة`, 'success');
+        }
+
+        async function adminDeleteDataset() {
+            if (!isAdminUser) return;
+            const key = document.getElementById('adminDatasetSelect').value;
+            const d = datasets[key];
+            if (!d) return;
+            if (!confirm('حذف شعبة "' + getDatasetLabel(d.meta) + '" نهائياً مع كل طلابها ودرجاتها؟ ستختفي من حساب المعلم أيضاً ولا يمكن التراجع.')) return;
+            try {
+                if (d.cloudDocId) await window.fb.deleteDoc(window.fb.doc(window.fb.db, ...CLOUD_COLLECTION_PATH, d.cloudDocId));
+                delete datasets[key];
+                if (key === currentDatasetKey) { currentDatasetKey = null; students = []; switchToCurrentDataset(); }
+                localStorage.setItem(STORAGE_KEY_DATASETS, JSON.stringify(datasets));
+                refreshAdminOwnerSelect();
+                renderTable();
+                showToast('تم حذف الشعبة', 'success');
+            } catch (e) {
+                showToast('تعذر الحذف: ' + e.message, 'error');
+            }
+        }
+
+        // === إدخال الأسماء مرة واحدة ثم درجات كل اختبار لكل الطلاب ===
+        function rosterMsg(text, ok) {
+            const el = document.getElementById('rosterMsg');
+            el.className = 'text-sm font-bold ' + (ok ? 'text-emerald-600' : 'text-rose-600');
+            el.textContent = text;
+        }
+        function rosterKey() {
+            const c = document.getElementById('rosterCategory').value;
+            return c === 'final' ? ('final_' + getTermKey()) : c;
+        }
+        function rosterFillCategories(keep) {
+            const src = document.getElementById('singleCategory');
+            const sel = document.getElementById('rosterCategory');
+            sel.innerHTML = Array.from(src.options).map(o => `<option value="${riskEsc(o.value)}">${riskEsc(o.textContent)}</option>`).join('');
+            if (keep && Array.from(sel.options).some(o => o.value === keep)) sel.value = keep;
+        }
+        function openRosterModal() {
+            rosterFillCategories();
+            document.getElementById('rosterNames').value = '';
+            rosterMsg('', true);
+            document.getElementById('rosterModal').classList.remove('hidden');
+            renderRosterTable(true);
+        }
+        function closeRosterModal() { document.getElementById('rosterModal').classList.add('hidden'); }
+        function rosterNewTest() {
+            const cur = document.getElementById('rosterCategory').value;
+            addCustomTest();
+            rosterFillCategories(cur);
+            renderRosterTable(true);
+        }
+        function renderRosterTable(syncMax) {
+            const key = rosterKey();
+            if (syncMax) {
+                const has = students.find(s => s.scores && s.scores[key]);
+                if (has) document.getElementById('rosterMax').value = has.scores[key].max;
+            }
+            const body = document.getElementById('rosterBody');
+            if (!students.length) {
+                body.innerHTML = '<tr><td colspan="3" class="p-6 text-center text-slate-400">لا يوجد طلاب بعد. أضف الأسماء من الخطوة 1.</td></tr>';
+                return;
+            }
+            body.innerHTML = students.map((s, i) => {
+                const sc = s.scores && s.scores[key];
+                return `<tr class="border-t border-slate-100"><td class="p-2 text-center text-slate-400">${i + 1}</td><td class="p-2 font-bold text-slate-800">${riskEsc(s.name)}</td>
+                    <td class="p-2"><input type="text" inputmode="decimal" data-sid="${s.id}" value="${sc ? sc.raw : ''}" onkeydown="rosterEnter(event)" class="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 text-center"></td></tr>`;
+            }).join('');
+        }
+        function rosterEnter(e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            const all = Array.from(document.querySelectorAll('#rosterBody input[data-sid]'));
+            const nxt = all[all.indexOf(e.target) + 1];
+            if (nxt) { nxt.focus(); nxt.select(); }
+        }
+        function rosterAddNames() {
+            const names = document.getElementById('rosterNames').value.split(/\r?\n/).map(x => x.trim()).filter(Boolean);
+            if (!names.length) { rosterMsg('اكتب اسماً واحداً على الأقل.', false); return; }
+            let added = 0, dup = 0;
+            names.forEach(n => {
+                if (students.some(s => s.name === n)) { dup++; return; }
+                students.push({ id: idCounter++, name: n, scores: {} });
+                added++;
+            });
+            saveToStorage();
+            renderTable();
+            renderRosterTable(false);
+            document.getElementById('rosterNames').value = '';
+            rosterMsg(`تمت إضافة ${added} طالب` + (dup ? ` (${dup} اسم موجود مسبقاً فتم تجاهله)` : '') + '. أدخل الدرجات من الجدول بالأسفل.', true);
+        }
+        function rosterSave() {
+            const key = rosterKey();
+            const max = parseFloat(normalizeDigits(document.getElementById('rosterMax').value));
+            if (isNaN(max) || max <= 0) { rosterMsg('أدخل درجة كلية صحيحة.', false); return; }
+            let saved = 0, bad = 0;
+            document.querySelectorAll('#rosterBody input[data-sid]').forEach(inp => {
+                inp.classList.remove('border-rose-500');
+                const v = normalizeDigits(inp.value.trim());
+                if (v === '') return;
+                const raw = parseFloat(v);
+                if (isNaN(raw) || raw < 0 || raw > max) { bad++; inp.classList.add('border-rose-500'); return; }
+                const st = students.find(s => String(s.id) === inp.dataset.sid);
+                if (!st) return;
+                if (!st.scores) st.scores = {};
+                st.scores[key] = { raw, max, norm: parseFloat(((raw / max) * 100).toFixed(2)) };
+                saved++;
+            });
+            if (saved) { saveToStorage(); renderTable(); }
+            rosterMsg(`تم حفظ ${saved} درجة.` + (bad ? ` ${bad} خانة غير صحيحة (ليست رقماً أو أكبر من الدرجة الكلية) لم تُحفظ.` : ''), bad === 0);
         }
 
         function getTeacherNames() {
@@ -3069,6 +3234,8 @@
             Object.keys(CTX_FIELDS).forEach(id => { document.getElementById(id).value = d.meta[CTX_FIELDS[id]]; });
             const ds2 = document.getElementById('adminDatasetSelect');
             if (ds2 && Array.from(ds2.options).some(o => o.value === key)) ds2.value = key;
+            const ts2 = document.getElementById('teacherDatasetSelect');
+            if (ts2 && Array.from(ts2.options).some(o => o.value === key)) ts2.value = key;
             onDatasetContextChange();
         }
 
@@ -3086,8 +3253,12 @@
         function applyTeacherRestriction() {
             if (isAdminUser) return;
             const own = Object.values(datasets).filter(d => d.ownerEmail === currentUserEmail && d.meta);
-            if (own.length === 0) { showAccessNotice('none'); return; }
+            if (own.length === 0) { showAccessNotice('none'); document.getElementById('teacherBar').classList.add('hidden'); return; }
             showAccessNotice(null);
+            const tsel = document.getElementById('teacherDatasetSelect');
+            const ownEntries = Object.entries(datasets).filter(([k, d]) => d.ownerEmail === currentUserEmail && d.meta);
+            tsel.innerHTML = ownEntries.map(([k, d]) => `<option value="${riskEsc(k)}">${riskEsc(getDatasetLabel(d.meta))}</option>`).join('');
+            document.getElementById('teacherBar').classList.remove('hidden');
             const map = { academicYear: 'year', subjectName: 'subject', studyCycle: 'cycle', gradeLevel: 'grade', sectionName: 'section' };
             Object.keys(map).forEach(id => {
                 const sel = document.getElementById(id);
@@ -3101,6 +3272,9 @@
                 Object.keys(map).forEach(id => { document.getElementById(id).value = m[map[id]]; });
                 onDatasetContextChange();
             }
+            const c2 = getCurrentContext();
+            const curKey2 = getDatasetKey(c2.year, c2.subject, c2.grade, c2.section, c2.cycle);
+            if (Array.from(tsel.options).some(o => o.value === curKey2)) tsel.value = curKey2;
         }
 
         function assignDatasetOwner() {
