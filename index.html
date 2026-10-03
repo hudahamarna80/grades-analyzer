@@ -550,6 +550,129 @@
         </div>
     </div>
 
+    <!-- تتبع الطلبة عبر الأعوام -->
+    <div id="stModal" class="fixed inset-0 bg-slate-900/50 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="p-5 bg-fuchsia-700 text-white flex justify-between items-center">
+                <h3 class="text-lg font-bold">تتبع الطلبة وتقدمهم عبر الأعوام الدراسية</h3>
+                <button onclick="closeStudentTrack()" class="text-white hover:text-fuchsia-100 text-xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-5">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">الاختبار</label>
+                        <select id="stTest" onchange="renderStudentTrack()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-fuchsia-500">
+                            <option value="final_term3">نهاية الفصل الثالث</option>
+                            <option value="final_term2">نهاية الفصل الثاني</option>
+                            <option value="final_term1">نهاية الفصل الأول</option>
+                            <option value="__avg__">المعدل العام</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">المادة</label>
+                        <select id="stSubject" onchange="renderStudentTrack()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-fuchsia-500"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">حد التقدم/التراجع (درجات)</label>
+                        <input id="stThr" type="text" inputmode="decimal" value="5" onchange="renderStudentTrack()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-center outline-none focus:ring-2 focus:ring-fuchsia-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">الترتيب</label>
+                        <select id="stSort" onchange="renderStudentTrack()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-fuchsia-500">
+                            <option value="name">بالاسم</option>
+                            <option value="down">الأكثر تراجعاً أولاً</option>
+                            <option value="up">الأكثر تقدماً أولاً</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-xs font-semibold text-slate-600">الأعوام (المتوفرة في البيانات)</span>
+                    <div id="stYears" class="flex flex-wrap gap-2 mt-1"></div>
+                </div>
+                <div id="stSummary" class="grid grid-cols-2 md:grid-cols-5 gap-3"></div>
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-right border-collapse whitespace-nowrap text-sm">
+                        <thead><tr id="stHead" class="bg-slate-50 text-slate-600 border-b border-slate-200"></tr></thead>
+                        <tbody id="stBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+                <p id="stNote" class="text-xs text-slate-500 leading-6"></p>
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+                <button onclick="exportStudentTrack()" class="px-5 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm">تصدير Excel</button>
+                <button onclick="closeStudentTrack()" class="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- مقارنة بين الأعوام الدراسية -->
+    <div id="yearCmpModal" class="fixed inset-0 bg-slate-900/50 hidden flex items-center justify-center z-50 backdrop-blur-sm p-4">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[92vh] flex flex-col overflow-hidden">
+            <div class="p-5 bg-indigo-700 text-white flex justify-between items-center">
+                <h3 class="text-lg font-bold">مقارنة النتائج بين الأعوام الدراسية</h3>
+                <button onclick="closeYearCmp()" class="text-white hover:text-indigo-100 text-xl leading-none">&times;</button>
+            </div>
+            <div class="p-6 overflow-y-auto space-y-5">
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">الاختبار</label>
+                        <select id="ycTest" onchange="renderYearCmp()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="final_term3">نهاية الفصل الثالث</option>
+                            <option value="final_term2">نهاية الفصل الثاني</option>
+                            <option value="final_term1">نهاية الفصل الأول</option>
+                            <option value="__avg__">المعدل العام</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">التجميع حسب</label>
+                        <select id="ycBy" onchange="renderYearCmp()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="subject">المادة</option>
+                            <option value="grade">الصف</option>
+                            <option value="cycle">الحلقة</option>
+                            <option value="both">الصف والمادة</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">الصف</label>
+                        <select id="ycGrade" onchange="renderYearCmp()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">المادة</label>
+                        <select id="ycSubject" onchange="renderYearCmp()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500"></select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">الدرجة المطلوبة للنسبة المرتفعة</label>
+                        <input id="ycHi" type="text" inputmode="decimal" value="70" onchange="renderYearCmp()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-center outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">المؤشر في الرسم والتغير</label>
+                        <select id="ycMetric" onchange="renderYearCmp()" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500">
+                            <option value="avg">المتوسط</option>
+                            <option value="hi">نسبة الحاصلين على الدرجة المرتفعة</option>
+                            <option value="pass">نسبة النجاح</option>
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <span class="text-xs font-semibold text-slate-600">الأعوام المقارَنة (المتوفرة في البيانات)</span>
+                    <div id="ycYears" class="flex flex-wrap gap-2 mt-1"></div>
+                </div>
+                <div id="ycChartWrap"><div class="chart-box"><canvas id="yearCmpChart"></canvas></div></div>
+                <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table class="w-full text-right border-collapse whitespace-nowrap text-sm">
+                        <thead><tr id="ycHead" class="bg-slate-50 text-slate-600 border-b border-slate-200"></tr></thead>
+                        <tbody id="ycBody" class="divide-y divide-slate-100"></tbody>
+                    </table>
+                </div>
+                <p id="ycNote" class="text-xs text-slate-500 leading-6"></p>
+            </div>
+            <div class="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+                <button onclick="exportYearCmp()" class="px-5 py-2 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-sm">تصدير Excel</button>
+                <button onclick="closeYearCmp()" class="px-5 py-2 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-800 font-bold text-sm">إغلاق</button>
+            </div>
+        </div>
+    </div>
+
     <!-- شاشة حجب: معلم لم تُعيَّن له شعب بعد -->
     <div id="accessNotice" class="hidden fixed inset-0 z-[60] bg-slate-50 flex items-center justify-center p-6">
         <div class="bg-white rounded-2xl shadow-xl border border-slate-200 max-w-md w-full p-8 text-center space-y-4">
@@ -1093,6 +1216,9 @@
                         <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>
                         توليد تقرير نسب PDF
                     </button>
+                    <button onclick="openStudentTrack()" class="text-sm bg-fuchsia-700 hover:bg-fuchsia-800 text-white font-bold py-2 px-4 rounded-lg transition-colors" title="تتبع الطلبة وحساب نسبة تقدمهم عبر الأعوام الدراسية">تتبع الطلبة عبر الأعوام</button>
+                    <button onclick="openYearCmp()" class="text-sm bg-indigo-700 hover:bg-indigo-800 text-white font-bold py-2 px-4 rounded-lg transition-colors" title="مقارنة نتائج نهاية العام بين الأعوام الدراسية">مقارنة الأعوام</button>
+                    <button onclick="exportAllToExcel()" class="text-sm bg-teal-700 hover:bg-teal-800 text-white font-bold py-2 px-4 rounded-lg transition-colors" title="ملف Excel واحد فيه ورقة لكل شعبة في العام المعروض">تصدير كل الشعب (Excel)</button>
                     <button onclick="openRosterModal()" class="text-sm bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 px-4 rounded-lg transition-colors" title="أضف أسماء الطلاب مرة واحدة ثم أدخل درجات كل اختبار في جدول واحد">إدخال الدرجات لكل الطلاب</button>
                     <button onclick="assignDatasetOwner()" id="assignOwnerBtn" class="hidden text-sm bg-slate-700 hover:bg-slate-800 text-white font-bold py-2 px-4 rounded-lg transition-colors" title="للمسؤول فقط: تعيين معلم مالكاً للمجموعة المعروضة">نقل الشعبة إلى معلم</button>
                     <button onclick="openSpecialModal()" class="text-sm bg-violet-600 hover:bg-violet-700 text-white font-bold py-2 px-4 rounded-lg transition-colors flex items-center gap-2" title="ذوو الهمم والموهوبون والمتفوقون: إضافة الأسماء والدرجات وتحليل التقدم">
@@ -1718,24 +1844,8 @@
                 return;
             }
             const ds = datasets[currentDatasetKey];
-            const headers = ['#', 'اسم الطالب', 'التشخيصي', 'التكويني الأول', 'التكويني الثاني', 'اختبار المدرسة', 'المركزي', 'نهاية الفصل الأول', 'نهاية الفصل الثاني', 'نهاية الفصل الثالث', 'المعدل العام %', 'التقدير'];
-
-            const cell = (s, key) => s.scores[key] ? (s.scores[key].raw + '/' + s.scores[key].max) : '-';
-
-            const rows = ds.students.map((s, idx) => {
-                const avg = getStudentScoreForBasis(s, 'average');
-                const gradeInfo = avg !== null ? getGradeInfo(avg) : null;
-                return [
-                    idx + 1,
-                    s.name,
-                    cell(s, 'diagnostic'), cell(s, 'formative1'), cell(s, 'formative2'), cell(s, 'school'), cell(s, 'central'),
-                    cell(s, 'final_term1'), cell(s, 'final_term2'), cell(s, 'final_term3'),
-                    avg !== null ? avg.toFixed(1) : '-',
-                    gradeInfo ? gradeInfo.label : '-'
-                ];
-            });
-
-            const wsData = [headers, ...rows];
+            const wsData = datasetToAoa(ds);
+            const headers = wsData[0];
             const ws = XLSX.utils.aoa_to_sheet(wsData);
             ws['!cols'] = headers.map(() => ({ wch: 16 }));
             const wb = XLSX.utils.book_new();
@@ -3158,6 +3268,249 @@
             });
             if (saved) { saveToStorage(); renderTable(); }
             rosterMsg(`تم حفظ ${saved} درجة.` + (bad ? ` ${bad} خانة غير صحيحة (ليست رقماً أو أكبر من الدرجة الكلية) لم تُحفظ.` : ''), bad === 0);
+        }
+
+        // === تصدير ===
+        function datasetToAoa(ds) {
+            const custom = ds.customTests || [];
+            const headers = ['#', 'اسم الطالب', 'التشخيصي', 'التكويني الأول', 'التكويني الثاني', 'اختبار المدرسة', 'المركزي', 'نهاية الفصل الأول', 'نهاية الفصل الثاني', 'نهاية الفصل الثالث']
+                .concat(custom.map(t => t.l + ' (إضافي)'), ['المعدل العام %', 'التقدير']);
+            const cell = (st, key) => (st.scores && st.scores[key]) ? (st.scores[key].raw + '/' + st.scores[key].max) : '-';
+            const keys = ['diagnostic', 'formative1', 'formative2', 'school', 'central', 'final_term1', 'final_term2', 'final_term3'];
+            const rows = ds.students.map((st, idx) => {
+                const avg = getStudentScoreForBasis(st, 'average');
+                const gi = avg !== null ? getGradeInfo(avg) : null;
+                return [idx + 1, st.name]
+                    .concat(keys.map(k => cell(st, k)), custom.map(t => cell(st, t.k)), [avg !== null ? avg.toFixed(1) : '-', gi ? gi.label : '-']);
+            });
+            return [headers].concat(rows);
+        }
+        function exportAllToExcel() {
+            const year = document.getElementById('academicYear').value;
+            const list = Object.values(datasets).filter(d => d.meta && d.meta.year === year && d.students && d.students.length);
+            if (!list.length) { showToast('لا توجد بيانات لتصديرها في هذا العام', 'error'); return; }
+            const gradeOrder = Array.from(document.getElementById('gradeLevel').options).map(o => o.value);
+            list.sort((a, b) => (gradeOrder.indexOf(a.meta.grade) - gradeOrder.indexOf(b.meta.grade)) ||
+                ((parseInt(a.meta.section) || 0) - (parseInt(b.meta.section) || 0)) || a.meta.subject.localeCompare(b.meta.subject, 'ar'));
+            const wb = XLSX.utils.book_new();
+            const used = new Set();
+            const index = [['الصف', 'الشعبة', 'المادة', 'المعلم (البريد)', 'عدد الطلاب', 'اسم الورقة']];
+            list.forEach(d => {
+                const base = (d.meta.grade.replace('الصف ', '') + '-' + d.meta.section + '-' + d.meta.subject).replace(/[\[\]:*?\/\\]/g, '').slice(0, 27);
+                let name = base, i = 2;
+                while (used.has(name)) name = base.slice(0, 25) + '_' + (i++);
+                used.add(name);
+                const ws = XLSX.utils.aoa_to_sheet(datasetToAoa(d));
+                ws['!cols'] = ws['!ref'] ? Array.from({ length: 16 }, (_, c) => ({ wch: c === 1 ? 28 : 15 })) : [];
+                XLSX.utils.book_append_sheet(wb, ws, name);
+                index.push([d.meta.grade, d.meta.section, d.meta.subject, d.ownerEmail || '', d.students.length, name]);
+            });
+            if (isAdminUser) {
+                const wi = XLSX.utils.aoa_to_sheet(index);
+                wi['!cols'] = [{ wch: 18 }, { wch: 10 }, { wch: 22 }, { wch: 32 }, { wch: 12 }, { wch: 30 }];
+                XLSX.utils.book_append_sheet(wb, wi, 'الفهرس');
+            }
+            XLSX.writeFile(wb, 'بيانات_' + year.replace('/', '-') + '.xlsx');
+            showToast('تم تصدير ' + list.length + ' شعبة', 'success');
+        }
+
+        // === تتبع الطلبة عبر الأعوام (المطابقة بالاسم) ===
+        let stRows = [], stYearsSel = [];
+        function ycNormName(n) {
+            return String(n).replace(/[\u064B-\u0652\u0640]/g, '').replace(/[أإآ]/g, 'ا').replace(/ى/g, 'ي').replace(/ة/g, 'ه').replace(/\s+/g, ' ').trim();
+        }
+        function openStudentTrack() {
+            const years = Array.from(new Set(Object.values(datasets).filter(d => d.meta).map(d => d.meta.year))).sort();
+            const last = years.slice(-3);
+            document.getElementById('stYears').innerHTML = years.map(y =>
+                `<label class="flex items-center gap-1.5 text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 cursor-pointer"><input type="checkbox" value="${riskEsc(y)}" ${last.includes(y) ? 'checked' : ''} onchange="renderStudentTrack()" class="rounded border-slate-300 text-fuchsia-600"> ${riskEsc(y)}</label>`).join('');
+            document.getElementById('stSubject').innerHTML = '<option value="">كل المواد (متوسط المواد)</option>' +
+                Array.from(document.getElementById('subjectName').options).map(o => `<option value="${riskEsc(o.value)}">${riskEsc(o.value)}</option>`).join('');
+            document.getElementById('stModal').classList.remove('hidden');
+            renderStudentTrack();
+        }
+        function closeStudentTrack() { document.getElementById('stModal').classList.add('hidden'); }
+        function renderStudentTrack() {
+            const years = Array.from(document.querySelectorAll('#stYears input:checked')).map(i => i.value).sort();
+            stYearsSel = years;
+            const key = document.getElementById('stTest').value;
+            const subj = document.getElementById('stSubject').value;
+            let thr = parseFloat(normalizeDigits(document.getElementById('stThr').value));
+            if (isNaN(thr) || thr < 0) thr = 5;
+            const map = {};
+            Object.values(datasets).forEach(d => {
+                if (!d.meta || !years.includes(d.meta.year) || !d.students) return;
+                if (subj && d.meta.subject !== subj) return;
+                d.students.forEach(st => {
+                    const v = key === '__avg__' ? getStudentScoreForBasis(st, 'average') : (st.scores && st.scores[key] ? st.scores[key].norm : null);
+                    if (v === null || v === undefined) return;
+                    const nk = ycNormName(st.name);
+                    if (!nk) return;
+                    const e = map[nk] || (map[nk] = { name: st.name, per: {} });
+                    const y = e.per[d.meta.year] || (e.per[d.meta.year] = { sum: 0, n: 0, grade: d.meta.grade, section: d.meta.section });
+                    y.sum += v; y.n++;
+                });
+            });
+            let single = 0;
+            const rows = [];
+            Object.values(map).forEach(e => {
+                const cells = years.map(y => e.per[y] ? { avg: parseFloat((e.per[y].sum / e.per[y].n).toFixed(1)), grade: e.per[y].grade.replace('الصف ', ''), section: e.per[y].section } : null);
+                const have = cells.filter(Boolean);
+                if (have.length < 2) { single++; return; }
+                const first = have[0].avg, last = have[have.length - 1].avg;
+                const change = parseFloat((last - first).toFixed(1));
+                rows.push({ name: e.name, cells, change, pct: first > 0 ? parseFloat(((change / first) * 100).toFixed(1)) : null, status: classifyProgress(first, last, thr) });
+            });
+            const sort = document.getElementById('stSort').value;
+            rows.sort((a, b) => sort === 'down' ? a.change - b.change : sort === 'up' ? b.change - a.change : a.name.localeCompare(b.name, 'ar'));
+            stRows = rows;
+
+            const cnt = l => rows.filter(r => r.status.label === l).length;
+            const pcts = rows.filter(r => r.pct !== null).map(r => r.pct);
+            const avgChange = rows.length ? (rows.reduce((a, r) => a + r.change, 0) / rows.length).toFixed(1) : '-';
+            const avgPct = pcts.length ? (pcts.reduce((a, b) => a + b, 0) / pcts.length).toFixed(1) : '-';
+            const card = (l, v, c) => `<div class="${c} border rounded-xl p-4 text-center"><span class="text-xs font-bold block mb-1">${l}</span><span class="text-xl font-extrabold">${v}</span></div>`;
+            document.getElementById('stSummary').innerHTML =
+                card('طلبة تم تتبعهم', rows.length, 'bg-slate-50 border-slate-200 text-slate-700') +
+                card('تقدم / ثابت / تراجع', cnt('تقدم') + ' / ' + cnt('ثابت') + ' / ' + cnt('تأخر'), 'bg-indigo-50 border-indigo-100 text-indigo-700') +
+                card('متوسط التغير (درجات)', avgChange === '-' ? '-' : (avgChange > 0 ? '+' : '') + avgChange, 'bg-emerald-50 border-emerald-100 text-emerald-700') +
+                card('متوسط نسبة التقدم', avgPct === '-' ? '-' : (avgPct > 0 ? '+' : '') + avgPct + '%', 'bg-fuchsia-50 border-fuchsia-100 text-fuchsia-700') +
+                card('ظهروا في عام واحد فقط', single, 'bg-amber-50 border-amber-100 text-amber-700');
+
+            document.getElementById('stHead').innerHTML = '<th class="p-3 w-10 text-center">#</th><th class="p-3 font-bold text-slate-900">اسم الطالب</th>' +
+                years.map(y => `<th class="p-3 text-center border-r border-slate-200">${riskEsc(y)}<br><span class="text-[10px] font-normal">المتوسط (الصف-الشعبة)</span></th>`).join('') +
+                '<th class="p-3 text-center border-r-2 border-slate-300 bg-slate-100">التغير (درجات)</th><th class="p-3 text-center">نسبة التقدم</th><th class="p-3 text-center">الحالة</th>';
+            document.getElementById('stBody').innerHTML = !rows.length
+                ? `<tr><td colspan="${years.length + 5}" class="p-8 text-center text-slate-400">${years.length < 2 ? 'اختر عامين على الأقل.' : 'لا يوجد طلاب بأسماء متطابقة في عامين أو أكثر بدرجات لهذا الاختبار.'}</td></tr>`
+                : rows.map((r, i) => `<tr><td class="p-3 text-center text-slate-400">${i + 1}</td><td class="p-3 font-bold text-slate-800">${riskEsc(r.name)}</td>` +
+                    r.cells.map(c => c ? `<td class="p-3 text-center border-r border-slate-100"><b>${c.avg}%</b> <span class="text-slate-400 text-xs">(${riskEsc(c.grade)}-${riskEsc(c.section)})</span></td>`
+                        : '<td class="p-3 text-center border-r border-slate-100 text-slate-300">-</td>').join('') +
+                    `<td class="p-3 text-center border-r-2 border-slate-200 bg-slate-50 font-bold ${r.change > 0 ? 'text-emerald-700' : r.change < 0 ? 'text-rose-700' : 'text-slate-600'}">${r.change > 0 ? '+' : ''}${r.change}</td>` +
+                    `<td class="p-3 text-center font-bold ${r.pct === null ? 'text-slate-400' : r.pct > 0 ? 'text-emerald-700' : r.pct < 0 ? 'text-rose-700' : 'text-slate-600'}">${r.pct === null ? '-' : (r.pct > 0 ? '+' : '') + r.pct + '%'}</td>` +
+                    `<td class="p-3 text-center"><span class="px-2.5 py-1 rounded-md text-xs font-bold ${r.status.bg} ${r.status.color}">${r.status.label}</span></td></tr>`).join('');
+            document.getElementById('stNote').textContent = 'يُطابَق الطالب بين الأعوام باسمه (مع توحيد الهمزات والتاء المربوطة والمسافات). يجب أن يُكتب الاسم بالصيغة نفسها في كل عام، فالاختلاف في عدد أجزاء الاسم أو إملائه يجعل الطالب يظهر كأنه جديد. نسبة التقدم = (آخر عام - أول عام) ÷ أول عام × 100. عند اختيار «كل المواد» يُحسب لكل طالب متوسط درجات مواده في كل عام.';
+        }
+        function exportStudentTrack() {
+            if (!stRows.length) return;
+            const header = ['#', 'اسم الطالب'];
+            stYearsSel.forEach(y => header.push(y + ' - المتوسط %', y + ' - الصف', y + ' - الشعبة'));
+            header.push('التغير (درجات)', 'نسبة التقدم %', 'الحالة');
+            const aoa = [header].concat(stRows.map((r, i) => {
+                const row = [i + 1, r.name];
+                r.cells.forEach(c => row.push(c ? c.avg : '', c ? c.grade : '', c ? c.section : ''));
+                row.push(r.change, r.pct === null ? '' : r.pct, r.status.label);
+                return row;
+            }));
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!views'] = [{ RTL: true }];
+            ws['!cols'] = header.map((h, i) => ({ wch: i === 1 ? 30 : 15 }));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'تتبع الطلبة');
+            XLSX.writeFile(wb, 'تتبع_الطلبة_عبر_الأعوام.xlsx');
+        }
+
+        // === مقارنة النتائج بين الأعوام الدراسية ===
+        let ycRows = [], ycYearsSel = [];
+        const YC_COLORS = ['#94a3b8', '#6366f1', '#10b981', '#f59e0b', '#ef4444'];
+        function openYearCmp() {
+            const years = Array.from(new Set(Object.values(datasets).filter(d => d.meta).map(d => d.meta.year))).sort();
+            const last = years.slice(-3);
+            document.getElementById('ycYears').innerHTML = years.map(y =>
+                `<label class="flex items-center gap-1.5 text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 cursor-pointer"><input type="checkbox" value="${riskEsc(y)}" ${last.includes(y) ? 'checked' : ''} onchange="renderYearCmp()" class="rounded border-slate-300 text-indigo-600"> ${riskEsc(y)}</label>`).join('');
+            const fill = (id, srcId, all) => {
+                document.getElementById(id).innerHTML = `<option value="">${all}</option>` +
+                    Array.from(document.getElementById(srcId).options).map(o => `<option value="${riskEsc(o.value)}">${riskEsc(o.value)}</option>`).join('');
+            };
+            fill('ycGrade', 'gradeLevel', 'كل الصفوف');
+            fill('ycSubject', 'subjectName', 'كل المواد');
+            document.getElementById('yearCmpModal').classList.remove('hidden');
+            renderYearCmp();
+        }
+        function closeYearCmp() { document.getElementById('yearCmpModal').classList.add('hidden'); }
+        function renderYearCmp() {
+            const years = Array.from(document.querySelectorAll('#ycYears input:checked')).map(i => i.value).sort();
+            ycYearsSel = years;
+            const key = document.getElementById('ycTest').value;
+            const by = document.getElementById('ycBy').value;
+            const fg = document.getElementById('ycGrade').value, fs = document.getElementById('ycSubject').value;
+            let hiThr = parseFloat(normalizeDigits(document.getElementById('ycHi').value));
+            if (isNaN(hiThr)) hiThr = 70;
+            const metric = document.getElementById('ycMetric').value;
+            const metricName = metric === 'avg' ? 'المتوسط' : metric === 'hi' ? ('نسبة ' + hiThr + ' فأكثر') : 'نسبة النجاح';
+            const mv = c => metric === 'avg' ? c.avg : metric === 'hi' ? c.hi : c.pass;
+            const gradeOrder = Array.from(document.getElementById('gradeLevel').options).map(o => o.value);
+            const cycleOrder = Array.from(document.getElementById('studyCycle').options).map(o => o.value);
+            const groups = {};
+            Object.values(datasets).forEach(d => {
+                if (!d.meta || !years.includes(d.meta.year) || !d.students) return;
+                if ((fg && d.meta.grade !== fg) || (fs && d.meta.subject !== fs)) return;
+                const gk = by === 'subject' ? d.meta.subject : by === 'grade' ? d.meta.grade : by === 'cycle' ? d.meta.cycle : d.meta.grade + ' - ' + d.meta.subject;
+                const g = groups[gk] || (groups[gk] = { label: gk, ord: by === 'cycle' ? cycleOrder.indexOf(d.meta.cycle) : gradeOrder.indexOf(d.meta.grade), per: {} });
+                const pl = riskPassLimitForGrade(d.meta.grade);
+                d.students.forEach(st => {
+                    const v = key === '__avg__' ? getStudentScoreForBasis(st, 'average') : (st.scores && st.scores[key] ? st.scores[key].norm : null);
+                    if (v === null || v === undefined) return;
+                    const y = g.per[d.meta.year] || (g.per[d.meta.year] = { sum: 0, n: 0, pass: 0, hi: 0 });
+                    y.sum += v; y.n++; if (v >= pl) y.pass++; if (v >= hiThr) y.hi++;
+                });
+            });
+            const rows = Object.values(groups).filter(g => Object.keys(g.per).length)
+                .sort((a, b) => (by === 'subject' ? 0 : a.ord - b.ord) || a.label.localeCompare(b.label, 'ar'));
+            ycRows = rows.map(g => {
+                const cells = years.map(y => g.per[y] ? { avg: parseFloat((g.per[y].sum / g.per[y].n).toFixed(1)), pass: Math.round(g.per[y].pass / g.per[y].n * 100), hi: Math.round(g.per[y].hi / g.per[y].n * 100), n: g.per[y].n } : null);
+                const have = cells.filter(Boolean);
+                const change = have.length >= 2 ? parseFloat((mv(have[have.length - 1]) - mv(have[0])).toFixed(1)) : null;
+                return { label: g.label, cells, change };
+            });
+            document.getElementById('ycHead').innerHTML = '<th class="p-3 font-bold text-slate-900">' + (by === 'subject' ? 'المادة' : by === 'grade' ? 'الصف' : by === 'cycle' ? 'الحلقة' : 'الصف - المادة') + '</th>' +
+                years.map(y => `<th class="p-3 text-center border-r border-slate-200">${riskEsc(y)}<br><span class="text-[10px] font-normal">المتوسط | النجاح | ${hiThr}+ | الطلاب</span></th>`).join('') +
+                '<th class="p-3 text-center border-r-2 border-slate-300 bg-slate-100">التغير في ' + metricName + '<br><span class="text-[10px] font-normal">(آخر عام - أول عام)</span></th>';
+            const colCount = years.length + 2;
+            document.getElementById('ycBody').innerHTML = !ycRows.length
+                ? `<tr><td colspan="${colCount}" class="p-8 text-center text-slate-400">${years.length ? 'لا توجد درجات لهذا الاختبار في الأعوام المختارة.' : 'اختر عاماً واحداً على الأقل.'}</td></tr>`
+                : ycRows.map(r => '<tr><td class="p-3 font-bold text-slate-800">' + riskEsc(r.label) + '</td>' +
+                    r.cells.map(c => c ? `<td class="p-3 text-center border-r border-slate-100"><b>${c.avg}%</b> <span class="text-slate-400">|</span> ${c.pass}% <span class="text-slate-400">|</span> <b class="text-indigo-700">${c.hi}%</b> <span class="text-slate-400">|</span> ${c.n}</td>`
+                        : '<td class="p-3 text-center border-r border-slate-100 text-slate-300">-</td>').join('') +
+                    `<td class="p-3 text-center border-r-2 border-slate-200 bg-slate-50 font-bold ${r.change === null ? 'text-slate-400' : r.change > 0 ? 'text-emerald-700' : r.change < 0 ? 'text-rose-700' : 'text-slate-600'}">${r.change === null ? '-' : (r.change > 0 ? '+' : '') + r.change}</td></tr>`).join('');
+            document.getElementById('ycNote').textContent = 'المتوسط = متوسط درجات الطلاب على مقياس 100، و«' + hiThr + '+» = نسبة الطلاب الذين حصلوا على ' + hiThr + ' فأكثر من بين من لهم درجة، والنجاح = نسبة من بلغوا حد النجاح (50 للصفوف 1-8 و60 للصفوف 9-12). طلاب كل عام مختلفون عن الأعوام الأخرى، فالمقارنة بين نتائج الدفعات لنفس الصف أو المادة.';
+            const wrap = document.getElementById('ycChartWrap');
+            if (!ycRows.length) {
+                if (chartInstances['yearCmpChart']) { chartInstances['yearCmpChart'].destroy(); delete chartInstances['yearCmpChart']; }
+                wrap.classList.add('hidden');
+            } else {
+                wrap.classList.remove('hidden');
+                renderChart('yearCmpChart', {
+                    type: 'bar',
+                    data: {
+                        labels: ycRows.map(r => r.label),
+                        datasets: years.map((y, i) => ({ label: y, data: ycRows.map(r => r.cells[i] ? mv(r.cells[i]) : null), backgroundColor: YC_COLORS[i % YC_COLORS.length] }))
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        scales: { y: { min: 0, max: 100, ticks: { font: CHART_FONT } }, x: { ticks: { font: CHART_FONT } } },
+                        plugins: { legend: { rtl: true, labels: { font: CHART_FONT } } }
+                    }
+                });
+            }
+        }
+        function exportYearCmp() {
+            if (!ycRows.length) return;
+            const header = ['المجموعة'];
+            const hiT = document.getElementById('ycHi').value || '70';
+            ycYearsSel.forEach(y => header.push(y + ' - المتوسط %', y + ' - النجاح %', y + ' - نسبة ' + hiT + ' فأكثر %', y + ' - عدد الطلاب'));
+            header.push('التغير');
+            const aoa = [header].concat(ycRows.map(r => {
+                const row = [r.label];
+                r.cells.forEach(c => row.push(c ? c.avg : '', c ? c.pass : '', c ? c.hi : '', c ? c.n : ''));
+                row.push(r.change === null ? '' : r.change);
+                return row;
+            }));
+            const ws = XLSX.utils.aoa_to_sheet(aoa);
+            ws['!views'] = [{ RTL: true }];
+            ws['!cols'] = header.map((h, i) => ({ wch: i === 0 ? 28 : 16 }));
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, 'مقارنة الأعوام');
+            XLSX.writeFile(wb, 'مقارنة_الأعوام.xlsx');
         }
 
         function getTeacherNames() {
